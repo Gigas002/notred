@@ -1,0 +1,16 @@
+[package]
+name = "notred-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Terminal notification manager for notred (Phase 4 — stub in Phase 0)."
+keywords.workspace = true
+
+[[bin]]
+name = "notred-tui"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }

@@ -1,0 +1,86 @@
+name: Test and coverage
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Build cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Run tests (default features)
+        run: cargo test --workspace --verbose
+      - name: Run tests (--all-features)
+        run: cargo test --workspace --all-features --verbose
+      - name: Run tests (--no-default-features)
+        run: cargo test --workspace --no-default-features --verbose
+      - name: Generate coverage report (libnotred)
+        run: |
+          cargo llvm-cov --all-features -p libnotred --lcov --output-path lcov-libnotred.info
+      - name: Generate coverage report (notred)
+        run: |
+          cargo llvm-cov --all-features -p notred --lcov --output-path lcov-notred.info
+      - name: Generate coverage report (notredctl)
+        run: |
+          cargo llvm-cov --all-features -p notredctl --lcov --output-path lcov-notredctl.info
+      - name: Generate coverage report (notred-tui)
+        run: |
+          cargo llvm-cov --all-features -p notred-tui --lcov --output-path lcov-notred-tui.info
+      - name: Upload libnotred coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          files: ./lcov-libnotred.info
+          flags: libnotred
+          name: libnotred
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload notred coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          files: ./lcov-notred.info
+          flags: notred
+          name: notred
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload notredctl coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          files: ./lcov-notredctl.info
+          flags: notredctl
+          name: notredctl
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload notred-tui coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          files: ./lcov-notred-tui.info
+          flags: notred-tui
+          name: notred-tui
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

@@ -1,0 +1,24 @@
+[workspace]
+members = ["libnotred", "notred", "notredctl", "notred-tui"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+license = "GPL-3.0-only"
+homepage = "https://github.com/Gigas002/notred"
+description = "Freedesktop notification daemon platform (session D-Bus + IPC)"
+keywords = ["notifications", "dbus", "freedesktop", "zbus"]
+repository = "https://github.com/Gigas002/notred"
+version = "0.1.0"
+
+[workspace.dependencies]
+base64-ng = "1"
+clap = { version = "4", features = ["derive"] }
+libnotred = { path = "libnotred" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-util", "net", "sync", "time"] }
+toml = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

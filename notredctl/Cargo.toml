@@ -1,0 +1,22 @@
+[package]
+name = "notredctl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Control connector for the notred daemon (IPC client)."
+keywords.workspace = true
+
+[[bin]]
+name = "notredctl"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+libnotred = { path = "../libnotred", default-features = false, features = ["ipc"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

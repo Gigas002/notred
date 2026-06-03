@@ -1,0 +1,5 @@
+# notred daemon config (place at $XDG_CONFIG_HOME/notred/notred.toml)
+# All fields are optional; shown values are the defaults.
+
+# socket_path = "/run/user/1000/notred.sock"  # default: $XDG_RUNTIME_DIR/notred.sock
+# log_filter  = "warn"                        # overridden by RUST_LOG

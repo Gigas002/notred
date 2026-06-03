@@ -1,0 +1,138 @@
+name: Deploy
+
+# Fires automatically on every v* tag push.
+# Can also be triggered manually via Actions → "Run workflow" for a smoke build
+# (the GitHub Release and crates.io steps are skipped on manual runs).
+on:
+  push:
+    tags:
+      - "v[0-9]*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # required to create GitHub Releases
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-notred:
+    name: Build notred
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build -p notred --release
+
+      - name: Strip and package
+        run: |
+          strip target/release/notred
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          tar -czf "notred-${VERSION}-x86_64-linux.tar.gz" -C target/release notred
+
+      - name: Upload artifact
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          archive: false
+          path: notred-*.tar.gz
+
+  build-notredctl:
+    name: Build notredctl
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build -p notredctl --release
+
+      - name: Strip and package
+        run: |
+          strip target/release/notredctl
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          tar -czf "notredctl-${VERSION}-x86_64-linux.tar.gz" -C target/release notredctl
+
+      - name: Upload artifact
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          archive: false
+          path: notredctl-*.tar.gz
+
+  build-notred-tui:
+    name: Build notred-tui
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build -p notred-tui --release
+
+      - name: Strip and package
+        run: |
+          strip target/release/notred-tui
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          tar -czf "notred-tui-${VERSION}-x86_64-linux.tar.gz" -C target/release notred-tui
+
+      - name: Upload artifact
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          archive: false
+          path: notred-tui-*.tar.gz
+
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-notred, build-notredctl, build-notred-tui]
+    if: github.event_name == 'push'
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.build-notred.outputs.artifact-id }},${{ needs.build-notredctl.outputs.artifact-id }},${{ needs.build-notred-tui.outputs.artifact-id }}
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: "*.tar.gz"
+          generate_release_notes: true
+
+  # Requires the CARGO_REGISTRY_TOKEN secret — see README for setup.
+  publish-crates-io:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: github-release
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish libnotred
+        run: cargo publish -p libnotred
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
