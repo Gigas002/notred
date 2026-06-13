@@ -28,3 +28,15 @@ fn global_socket_override_parses() {
         Some(std::path::Path::new("/run/notred.sock"))
     );
 }
+
+#[test]
+fn close_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "close", "42"]).unwrap();
+    assert!(matches!(cli.command, Command::Close { id: 42 }));
+}
+
+#[test]
+fn close_all_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "close-all"]).unwrap();
+    assert!(matches!(cli.command, Command::CloseAll));
+}

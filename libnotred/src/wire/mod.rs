@@ -25,6 +25,12 @@ pub enum Cmd {
     Ping,
     Subscribe,
     List,
+    /// Dismiss one active notification by id (emits FDN `NotificationClosed`).
+    Dismiss {
+        id: u32,
+    },
+    /// Dismiss all active notifications.
+    CloseAll,
 }
 
 /// Daemon → consumer response. Tries `Err` variant first on deserialization.
@@ -69,6 +75,7 @@ pub struct ErrResponse {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OkPayload {
     Pong,
+    Ok,
     Items { items: Vec<MinimalNotification> },
     Event { event: Event },
 }

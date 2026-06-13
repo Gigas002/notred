@@ -43,6 +43,26 @@ impl Client {
         }
     }
 
+    /// Dismiss one notification by id. Returns an error if the id was not found.
+    pub async fn dismiss(&mut self, id: u32) -> Result<(), IpcError> {
+        codec::write_request(&mut self.write, &Request::new(Cmd::Dismiss { id })).await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(_)) => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("dismiss")),
+        }
+    }
+
+    /// Dismiss all active notifications.
+    pub async fn close_all(&mut self) -> Result<(), IpcError> {
+        codec::write_request(&mut self.write, &Request::new(Cmd::CloseAll)).await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(_)) => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("close_all")),
+        }
+    }
+
     /// Block and invoke `on_line` for each NDJSON response line until EOF.
     pub async fn subscribe<F>(&mut self, mut on_line: F) -> Result<(), IpcError>
     where

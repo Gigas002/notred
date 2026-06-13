@@ -503,10 +503,10 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 ### Phase 1 — FDN server + queue (`libnotred`)
 
-- [ ] `libnotred` (`server`): own bus name, `Notify`, ids, `CloseNotification`, signals.
-- [ ] Queue + `replaces_id`; on change → IPC `update` event.
-- [ ] `notred` bin: config load → `HostConfig`.
-- [ ] `notredctl list`, `close`, `close-all`.
+- [x] `libnotred` (`server`): own bus name, `Notify`, ids, `CloseNotification`, signals.
+- [x] Queue + `replaces_id`; on change → IPC `update` event.
+- [x] `notred` bin: config load → `HostConfig`.
+- [x] `notredctl list`, `close`, `close-all`.
 
 **Verify:** `notify-send` updates `notredctl list`; no subscriber required.
 

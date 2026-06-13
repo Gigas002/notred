@@ -6,6 +6,9 @@ pub enum NotredBinError {
     Ipc(#[from] libnotred::IpcError),
 
     #[error(transparent)]
+    Host(#[from] libnotred::host::HostError),
+
+    #[error(transparent)]
     Io(#[from] std::io::Error),
 
     #[error("json error: {0}")]
