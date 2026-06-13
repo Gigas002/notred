@@ -28,6 +28,14 @@ pub enum Command {
     Subscribe,
     /// Active notifications snapshot as JSON on stdout.
     List,
+    /// Dismiss one active notification by id.
+    Close {
+        /// Notification id to dismiss.
+        id: u32,
+    },
+    /// Dismiss all active notifications.
+    #[command(name = "close-all")]
+    CloseAll,
 }
 
 impl Cli {
@@ -56,6 +64,17 @@ impl Cli {
                         Ok(())
                     })
                     .await?;
+            }
+            Command::Close { id } => {
+                client.dismiss(id).await.map_err(|e| match e {
+                    libnotred::IpcError::ServerError(msg) => CtlError::Server(msg),
+                    other => CtlError::Ipc(other),
+                })?;
+                println!("closed {id}");
+            }
+            Command::CloseAll => {
+                client.close_all().await?;
+                println!("closed all");
             }
         }
         Ok(())

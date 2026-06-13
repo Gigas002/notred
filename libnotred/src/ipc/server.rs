@@ -1,20 +1,26 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
+use tokio::sync::broadcast;
 
 use crate::ipc::IpcError;
 use crate::ipc::codec;
+use crate::model::CloseReason;
+use crate::queue::Queue;
 use crate::wire::{Cmd, ErrorCode, Event, OkPayload, Request, Response};
 
 pub struct Server {
     socket_path: PathBuf,
+    queue: Arc<Queue>,
 }
 
 impl Server {
-    pub fn new(socket_path: impl Into<PathBuf>) -> Self {
+    pub fn new(socket_path: impl Into<PathBuf>, queue: Arc<Queue>) -> Self {
         Self {
             socket_path: socket_path.into(),
+            queue,
         }
     }
 
@@ -37,8 +43,9 @@ impl Server {
 
         loop {
             let (stream, _) = listener.accept().await?;
+            let queue = Arc::clone(&self.queue);
             tokio::spawn(async move {
-                if let Err(e) = handle_connection(stream).await {
+                if let Err(e) = handle_connection(stream, queue).await {
                     tracing::warn!(%e, "IPC connection ended with error");
                 }
             });
@@ -46,7 +53,7 @@ impl Server {
     }
 }
 
-async fn handle_connection(stream: UnixStream) -> Result<(), IpcError> {
+async fn handle_connection(stream: UnixStream, queue: Arc<Queue>) -> Result<(), IpcError> {
     let (read, mut write) = stream.into_split();
     let mut reader = BufReader::new(read);
 
@@ -56,14 +63,19 @@ async fn handle_connection(stream: UnixStream) -> Result<(), IpcError> {
             None => return Ok(()),
         };
 
-        if !dispatch(&mut reader, &mut write, req).await? {
+        if !dispatch(&mut reader, &mut write, req, &queue).await? {
             return Ok(());
         }
     }
 }
 
 /// Returns `true` to keep reading requests on this connection.
-async fn dispatch<R, W>(reader: &mut R, write: &mut W, req: Request) -> Result<bool, IpcError>
+async fn dispatch<R, W>(
+    reader: &mut R,
+    write: &mut W,
+    req: Request,
+    queue: &Arc<Queue>,
+) -> Result<bool, IpcError>
 where
     R: AsyncBufReadExt + Unpin,
     W: AsyncWriteExt + Unpin,
@@ -74,57 +86,130 @@ where
             Ok(true)
         }
         Cmd::List => {
-            codec::write_response(write, &Response::ok(OkPayload::Items { items: vec![] })).await?;
+            let items = queue.snapshot().await;
+            codec::write_response(write, &Response::ok(OkPayload::Items { items })).await?;
+            Ok(true)
+        }
+        Cmd::Dismiss { id } => {
+            if queue.close(id, CloseReason::DismissedByUser).await {
+                codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
+            } else {
+                codec::write_response(
+                    write,
+                    &Response::err(ErrorCode::NotFound, format!("notification {id} not found")),
+                )
+                .await?;
+            }
+            Ok(true)
+        }
+        Cmd::CloseAll => {
+            queue.close_all(CloseReason::DismissedByUser).await;
+            codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
             Ok(true)
         }
         Cmd::Subscribe => {
-            run_subscribe(reader, write).await?;
+            run_subscribe(reader, write, queue).await?;
             Ok(false)
         }
     }
 }
 
-async fn run_subscribe<R, W>(reader: &mut R, write: &mut W) -> Result<(), IpcError>
+async fn run_subscribe<R, W>(
+    reader: &mut R,
+    write: &mut W,
+    queue: &Arc<Queue>,
+) -> Result<(), IpcError>
 where
     R: AsyncBufReadExt + Unpin,
     W: AsyncWriteExt + Unpin,
 {
-    let initial = Response::ok(OkPayload::Event {
-        event: Event::Update { items: vec![] },
-    });
-    codec::write_response(write, &initial).await?;
+    let mut rx = queue.subscribe_changes();
+
+    // Send initial snapshot.
+    let items = queue.snapshot().await;
+    codec::write_response(
+        write,
+        &Response::ok(OkPayload::Event {
+            event: Event::Update { items },
+        }),
+    )
+    .await?;
+
+    let mut line_buf = String::new();
 
     loop {
-        let mut line = String::new();
-        let n = reader.read_line(&mut line).await?;
-        if n == 0 {
-            break;
-        }
-        let extra: Request = match serde_json::from_str(line.trim()) {
-            Ok(r) => r,
-            Err(e) => {
-                codec::write_response(
-                    write,
-                    &Response::err(ErrorCode::InvalidRequest, e.to_string()),
-                )
-                .await?;
-                continue;
+        tokio::select! {
+            result = rx.recv() => {
+                match result {
+                    Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
+                        let items = queue.snapshot().await;
+                        codec::write_response(
+                            write,
+                            &Response::ok(OkPayload::Event {
+                                event: Event::Update { items },
+                            }),
+                        )
+                        .await?;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
             }
-        };
-        match extra.cmd {
-            Cmd::Ping => {
-                codec::write_response(write, &Response::ok(OkPayload::Pong)).await?;
-            }
-            Cmd::List => {
-                codec::write_response(write, &Response::ok(OkPayload::Items { items: vec![] }))
-                    .await?;
-            }
-            Cmd::Subscribe => {
-                codec::write_response(
-                    write,
-                    &Response::err(ErrorCode::InvalidRequest, "already subscribed"),
-                )
-                .await?;
+            n = reader.read_line(&mut line_buf) => {
+                let n = n?;
+                if n == 0 {
+                    break;
+                }
+                let req: Request = match serde_json::from_str(line_buf.trim()) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        codec::write_response(
+                            write,
+                            &Response::err(ErrorCode::InvalidRequest, e.to_string()),
+                        )
+                        .await?;
+                        line_buf.clear();
+                        continue;
+                    }
+                };
+                line_buf.clear();
+                match req.cmd {
+                    Cmd::Ping => {
+                        codec::write_response(write, &Response::ok(OkPayload::Pong)).await?;
+                    }
+                    Cmd::List => {
+                        let items = queue.snapshot().await;
+                        codec::write_response(
+                            write,
+                            &Response::ok(OkPayload::Items { items }),
+                        )
+                        .await?;
+                    }
+                    Cmd::Subscribe => {
+                        codec::write_response(
+                            write,
+                            &Response::err(ErrorCode::InvalidRequest, "already subscribed"),
+                        )
+                        .await?;
+                    }
+                    Cmd::Dismiss { id } => {
+                        if queue.close(id, CloseReason::DismissedByUser).await {
+                            codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
+                        } else {
+                            codec::write_response(
+                                write,
+                                &Response::err(
+                                    ErrorCode::NotFound,
+                                    format!("notification {id} not found"),
+                                ),
+                            )
+                            .await?;
+                        }
+                    }
+                    Cmd::CloseAll => {
+                        queue.close_all(CloseReason::DismissedByUser).await;
+                        codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
+                    }
+                }
             }
         }
     }

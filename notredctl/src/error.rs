@@ -13,4 +13,7 @@ pub enum CtlError {
 
     #[error("cannot reach notred daemon at {0}")]
     DaemonUnreachable(String),
+
+    #[error("server error: {0}")]
+    Server(String),
 }

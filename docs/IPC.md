@@ -1,4 +1,4 @@
-# notred IPC v1 (Phase 0)
+# notred IPC v1 (Phase 1)
 
 ## Transport
 
@@ -11,7 +11,7 @@
 - **Integrators:** use **`notredctl`** (`notredctl --help`, JSON on stdout) — see [`PLAN.md`](PLAN.md) §4.6.
 - **Implementors:** this document + `examples/ipc-examples/*.jsonl` golden fixtures.
 
-Phase 0 implements **`ping`**, **`subscribe`**, and **`list`** only. Further commands land in later phases ([`PLAN.md`](PLAN.md) §4.1).
+Phase 1 implements **`ping`**, **`subscribe`**, **`list`**, **`dismiss`**, and **`close_all`**. Further commands land in later phases ([`PLAN.md`](PLAN.md) §4.1).
 
 ---
 
@@ -21,12 +21,14 @@ Phase 0 implements **`ping`**, **`subscribe`**, and **`list`** only. Further com
 {"v":1,"cmd":"<command>"[, ...args]}
 ```
 
-| `cmd`                           | Extra fields | Phase |
-| ------------------------------- | ------------ | ----- |
-| `ping`                          | —            | 0     |
-| `subscribe`                     | —            | 0     |
-| `list`                          | —            | 0     |
-| `get`, `dismiss`, `activate`, … | TBD          | 1+    |
+| `cmd`                   | Extra fields    | Phase |
+| ----------------------- | --------------- | ----- |
+| `ping`                  | —               | 0     |
+| `subscribe`             | —               | 0     |
+| `list`                  | —               | 0     |
+| `dismiss`               | `"id": u32`     | 1     |
+| `close_all`             | —               | 1     |
+| `get`, `activate`, …    | TBD             | 2+    |
 
 ---
 
@@ -38,11 +40,12 @@ Phase 0 implements **`ping`**, **`subscribe`**, and **`list`** only. Further com
 {"v":1,"type":"<type>"[, ...fields]}
 ```
 
-| `type`  | Fields                           | Reply to             |
-| ------- | -------------------------------- | -------------------- |
-| `pong`  | —                                | `ping`               |
-| `items` | `"items": MinimalNotification[]` | `list`               |
-| `event` | `"event": Event`                 | `subscribe` (stream) |
+| `type`  | Fields                           | Reply to                     |
+| ------- | -------------------------------- | ---------------------------- |
+| `pong`  | —                                | `ping`                       |
+| `ok`    | —                                | `dismiss`, `close_all`       |
+| `items` | `"items": MinimalNotification[]` | `list`                       |
+| `event` | `"event": Event`                 | `subscribe` (stream)         |
 
 ### Error
 

@@ -10,4 +10,7 @@ pub enum IpcError {
 
     #[error("unexpected IPC response: {0}")]
     UnexpectedResponse(&'static str),
+
+    #[error("server error: {0}")]
+    ServerError(String),
 }
