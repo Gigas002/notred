@@ -544,9 +544,11 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 ### Phase 5 — release v0.1.0
 
-- [ ] README: install, socket, IPC link, **not libnotify** disclaimer.
-- [ ] systemd user unit example in-repo (e.g. `examples/notred.service`); install target **`~/.config/systemd/user/notred.service`** — document `systemctl --user enable --now notred.service`.
-- [ ] CHANGELOG; tag; publish `libnotred` if crates.io ready.
+- [x] README: install, socket, IPC link, **not libnotify** disclaimer.
+- [x] systemd user unit example in-repo (`examples/notred.service`); install target **`~/.config/systemd/user/notred.service`** — document `systemctl --user enable --now notred.service`.
+- [x] CHANGELOG ([`CHANGELOG.md`](CHANGELOG.md)).
+- [ ] Tag `v0.1.0` and push (triggers [Deploy](.github/workflows/deploy.yml) — see README **Releasing**).
+- [ ] Publish `libnotred` to crates.io (`CARGO_REGISTRY_TOKEN` secret; automated on tag push when configured).
 
 **Verify:** full §7 gates on release tag; dogfood `notify-send` + `notred-tui` on a real session.
 
@@ -556,11 +558,11 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 - [ ] `notify-send` works with **only** `notred` running (no subscriber) — proves FDN.
 - [ ] `notredctl reload|pause|close-all` works via IPC.
-- [ ] **History (optional feature):** opt-in Cargo feature `history`; `[history] enabled` defaults **off**; `flush`, `max_entries` documented.
+- [x] **History (optional feature):** opt-in Cargo feature `history`; `[history] enabled` defaults **off**; `flush`, `max_entries` documented (README + `examples/config.toml`).
 - [ ] `notred-tui`: browse session history when history enabled.
 - [ ] **No** Wayland/Cairo in notred workspace.
 - [ ] IPC v1 documented + golden tests.
-- [ ] README states **not libnotify**.
+- [x] README states **not libnotify**.
 - [ ] All §7 quality gates pass on `main` and release tags.
 
 ---
