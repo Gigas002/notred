@@ -4,10 +4,27 @@
 # socket_path = "/run/user/1000/notred.sock"  # default: $XDG_RUNTIME_DIR/notred.sock
 # log_filter  = "warn"                        # overridden by RUST_LOG
 
-# Optional shell hook on action activation (Phase 2).
-# Env: NOTRED_ID, NOTRED_ACTION_KEY, NOTRED_APP_ID
-# [events]
-# on_action = ["sh", "-c", "echo activated $NOTRED_ID $NOTRED_ACTION_KEY"]
+# Behavior override fragments — same layout as poshanka theme fragments, but [events] only.
+[paths]
+overrides = [
+    "urgency/low/config.toml",
+    "urgency/critical/config.toml",
+    "apps/some_app/config.toml",
+]
+
+[queue]
+# max_visible = 0          # 0 = unlimited active notifications
+# default_timeout_ms = 0   # used when FDN expire_timeout is -1; 0 = persistent
+
+# Global event hooks. Each key is optional; fragments override per-key (see docs/PLAN.md §5.2).
+# Env: NOTRED_ID, NOTRED_APP_ID, NOTRED_EVENT_KIND, NOTRED_ACTION_KEY, NOTRED_SUMMARY, …
+[events]
+# on_button_left   = ["sh", "-c", "echo default left $NOTRED_ID"]
+# on_button_middle = ["sh", "-c", "echo default middle"]
+# on_button_right  = ["sh", "-c", "echo default right"]
+# on_touch         = ["sh", "-c", "echo default touch"]
+# on_notify        = ["sh", "-c", "echo new $NOTRED_APP_ID: $NOTRED_SUMMARY"]
+# on_action        = ["sh", "-c", "echo activated $NOTRED_ID $NOTRED_ACTION_KEY"]
 
 # Session notification history (requires `history` Cargo feature).
 # [history]

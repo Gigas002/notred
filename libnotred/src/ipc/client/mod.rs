@@ -80,6 +80,23 @@ impl Client {
         }
     }
 
+    /// Report a pointer gesture; runs matching `[events]` hook or default policy.
+    pub async fn input(&mut self, id: u32, event_kind: &str) -> Result<(), IpcError> {
+        codec::write_request(
+            &mut self.write,
+            &Request::new(Cmd::Input {
+                id,
+                event_kind: event_kind.to_string(),
+            }),
+        )
+        .await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(_)) => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("input")),
+        }
+    }
+
     /// Re-read daemon config from disk.
     pub async fn reload(&mut self) -> Result<(), IpcError> {
         codec::write_request(&mut self.write, &Request::new(Cmd::Reload)).await?;

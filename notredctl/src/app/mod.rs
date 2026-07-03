@@ -62,6 +62,13 @@ pub async fn run(settings: Settings) -> Result<(), CtlError> {
                 .map_err(map_server_err)?;
             println!("activated {id}");
         }
+        crate::cli::Command::Input { id, event_kind } => {
+            client
+                .input(id, &event_kind)
+                .await
+                .map_err(map_server_err)?;
+            println!("input {id} {event_kind}");
+        }
         #[cfg(feature = "history")]
         crate::cli::Command::ListHistory => {
             let rows = client

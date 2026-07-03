@@ -2,10 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use libnotred::RuntimeConfig;
+use libnotred::{EventsPolicy, RuntimeConfig};
 
 use crate::cli::Cli;
-use crate::config::FileConfig;
+use crate::config::{FileConfig, load_events_policy};
 use crate::error::NotredBinError;
 
 /// Fully resolved runtime settings (only type passed below this boundary).
@@ -33,10 +33,30 @@ pub fn resolve(_cli: &Cli, file: FileConfig) -> Settings {
 }
 
 fn runtime_from_file(file: &FileConfig) -> RuntimeConfig {
+    let events = events_policy_from_file(file);
     RuntimeConfig {
-        on_action: file.events.on_action.clone(),
+        max_visible: file.queue.max_visible,
+        default_timeout_ms: file.queue.default_timeout_ms,
+        events,
         #[cfg(feature = "history")]
         history: file.history_settings(),
+    }
+}
+
+fn events_policy_from_file(file: &FileConfig) -> EventsPolicy {
+    if let Some(dir) = file.config_dir() {
+        load_events_policy(&file.events, &file.paths.overrides, &dir).unwrap_or_else(|e| {
+            tracing::warn!(%e, "failed to load event override fragments");
+            EventsPolicy {
+                base: file.events.to_hooks(),
+                overrides: vec![],
+            }
+        })
+    } else {
+        EventsPolicy {
+            base: file.events.to_hooks(),
+            overrides: vec![],
+        }
     }
 }
 

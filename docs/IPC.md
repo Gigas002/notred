@@ -34,6 +34,22 @@ Phase 3 adds **`list_history`** and **`remove`** plus the **`history_changed`** 
 | `unpause`       | —                                                         | 2     |
 | `list_history`  | `active_only`, `app_id`, `since` (all optional)           | 3     |
 | `remove`        | `"id": u32`                                               | 3     |
+| `input`         | `"id": u32`, `"event_kind": string`                       | 6     |
+
+### `input` event kinds
+
+Subscribers (e.g. poshanka) report pointer gestures with **`event_kind`** — no other aliases on the wire:
+
+| `event_kind`     | `[events]` hook      | Default when hook absent |
+| ---------------- | -------------------- | ------------------------ |
+| `button_left`    | `on_button_left`     | no actions → dismiss; has actions → `activate` default key |
+| `button_middle`  | `on_button_middle`   | dismiss |
+| `button_right`   | `on_button_right`    | dismiss |
+| `touch`          | `on_touch`           | same as `button_left` |
+
+When a configured hook exists for the kind, **only** the shell hook runs (no automatic dismiss/activate). Hooks receive env: `NOTRED_ID`, `NOTRED_APP_ID`, `NOTRED_SUMMARY`, `NOTRED_EVENT_KIND`.
+
+`activate` / `close` (dismiss) remain separate shortcuts for whole-card tap (poshanka v0) and **notred-tui** — they do not use `input`.
 
 ### `activate` action keys
 
@@ -83,6 +99,7 @@ Same core fields as `MinimalNotification`, plus:
 | -------------------------------------------- | --------------- |
 | `examples/ipc-examples/list_history.jsonl`   | `list_history`  |
 | `examples/ipc-examples/remove.jsonl`         | `remove`        |
+| `examples/ipc-examples/input.jsonl`          | `input`         |
 
 See also Phase 0–2 fixtures (`ping`, `list`, `subscribe`, `activate`, `reload`, `pause`).
 

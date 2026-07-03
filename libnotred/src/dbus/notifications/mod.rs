@@ -61,13 +61,7 @@ impl Notifications {
             timestamp: now_unix(),
         };
 
-        let id = self.state.queue.push(notif.clone()).await;
-        #[cfg(feature = "history")]
-        {
-            let mut stored = notif;
-            stored.id = id;
-            self.state.record_notify(&stored).await;
-        }
+        let id = self.state.push_notification(notif).await;
         tracing::debug!(id, "FDN Notify");
         id
     }

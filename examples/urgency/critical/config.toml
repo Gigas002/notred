@@ -1,0 +1,6 @@
+[override]
+type = "urgency"
+level = "critical"
+
+[events]
+# on_button_right = ["sh", "-c", "echo global critical right"]

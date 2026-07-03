@@ -115,6 +115,24 @@ async fn get_finds_active_and_held() {
 }
 
 #[tokio::test]
+async fn max_visible_evicts_oldest() {
+    let q = Queue::new();
+    q.set_max_visible(2).await;
+    q.push(notif("a", "1")).await;
+    q.push(notif("b", "2")).await;
+    let mut close_rx = q.subscribe_closes();
+    q.push(notif("c", "3")).await;
+
+    assert_eq!(q.len().await, 2);
+    let items = q.snapshot().await;
+    assert_eq!(items[0].summary, "2");
+    assert_eq!(items[1].summary, "3");
+
+    let ev = close_rx.try_recv().unwrap();
+    assert_eq!(ev.reason, CloseReason::Undefined);
+}
+
+#[tokio::test]
 async fn change_broadcast_fires_on_push_and_close() {
     let q = Queue::new();
     let mut rx = q.subscribe_changes();

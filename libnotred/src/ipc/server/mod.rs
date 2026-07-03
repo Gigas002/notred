@@ -9,7 +9,7 @@ use tokio::sync::broadcast;
 use crate::history::HistoryFilter;
 #[cfg(feature = "history")]
 use crate::host::state::HistoryError;
-use crate::host::state::{ActivateError, HostState, RuntimeConfig};
+use crate::host::state::{ActivateError, HostState, InputError, RuntimeConfig};
 use crate::ipc::IpcError;
 use crate::ipc::codec;
 use crate::model::CloseReason;
@@ -136,6 +136,38 @@ where
                 .await?;
             }
             Err(ActivateError::InvalidActionKey { key }) => {
+                codec::write_response(
+                    write,
+                    &Response::err(
+                        ErrorCode::InvalidRequest,
+                        format!("unknown action key {key:?}"),
+                    ),
+                )
+                .await?;
+            }
+        },
+        Cmd::Input { id, event_kind } => match ctx.state.handle_input(id, &event_kind).await {
+            Ok(()) => {
+                codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
+            }
+            Err(InputError::NotFound) => {
+                codec::write_response(
+                    write,
+                    &Response::err(ErrorCode::NotFound, format!("notification {id} not found")),
+                )
+                .await?;
+            }
+            Err(InputError::InvalidEventKind { kind }) => {
+                codec::write_response(
+                    write,
+                    &Response::err(
+                        ErrorCode::InvalidRequest,
+                        format!("unknown event_kind {kind:?}"),
+                    ),
+                )
+                .await?;
+            }
+            Err(InputError::InvalidActionKey { key }) => {
                 codec::write_response(
                     write,
                     &Response::err(

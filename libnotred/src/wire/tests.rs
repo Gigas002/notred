@@ -81,6 +81,19 @@ fn activate_roundtrip() {
 }
 
 #[test]
+fn input_roundtrip() {
+    let req_line = r#"{"v":1,"cmd":"input","id":2,"event_kind":"button_left"}"#;
+    let req: Request = serde_json::from_str(req_line).unwrap();
+    assert_eq!(
+        req.cmd,
+        Cmd::Input {
+            id: 2,
+            event_kind: "button_left".into(),
+        }
+    );
+}
+
+#[test]
 fn reload_pause_unpause_roundtrip() {
     for (line, cmd) in [
         (r#"{"v":1,"cmd":"reload"}"#, Cmd::Reload),

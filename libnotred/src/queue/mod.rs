@@ -29,6 +29,7 @@ struct QueueInner {
 /// to receive broadcast notifications on mutation.
 pub struct Queue {
     inner: RwLock<QueueInner>,
+    max_visible: RwLock<u32>,
     /// Fires `()` on any queue mutation (add or remove).
     change_tx: broadcast::Sender<()>,
     /// Fires [`ClosedEvent`] when a notification is removed.
@@ -52,8 +53,41 @@ impl Queue {
                 held: vec![],
                 paused: false,
             }),
+            max_visible: RwLock::new(0),
             change_tx,
             close_tx,
+        }
+    }
+
+    /// Cap on active notifications (`0` = unlimited). Evicts oldest when exceeded.
+    pub async fn set_max_visible(&self, cap: u32) {
+        *self.max_visible.write().await = cap;
+        self.enforce_max_visible().await;
+    }
+
+    pub async fn max_visible(&self) -> u32 {
+        *self.max_visible.read().await
+    }
+
+    async fn enforce_max_visible(&self) {
+        let cap = *self.max_visible.read().await;
+        if cap == 0 {
+            return;
+        }
+        let cap = cap as usize;
+        let mut inner = self.inner.write().await;
+        let mut evicted = Vec::new();
+        while inner.items.len() > cap {
+            let id = inner.items.remove(0).id;
+            evicted.push(id);
+        }
+        drop(inner);
+        for id in evicted {
+            let _ = self.close_tx.send(ClosedEvent {
+                id,
+                reason: CloseReason::Undefined,
+            });
+            let _ = self.change_tx.send(());
         }
     }
 
@@ -95,6 +129,7 @@ impl Queue {
 
         drop(inner);
         if broadcast {
+            self.enforce_max_visible().await;
             let _ = self.change_tx.send(());
         }
         id

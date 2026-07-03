@@ -67,6 +67,7 @@ impl NotredHost {
     /// Run the host until an error or signal.
     pub async fn run(&self) -> Result<(), HostError> {
         let queue = Arc::new(Queue::new());
+        queue.set_max_visible(self.config.runtime.max_visible).await;
         let state = HostState::new(self.config.runtime.clone(), Arc::clone(&queue));
 
         #[cfg(feature = "history")]
