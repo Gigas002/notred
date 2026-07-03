@@ -153,15 +153,9 @@ mod server_tests {
         let (handle, _) = start_server(&path).await;
 
         let (mut r, mut w) = connect(&path).await;
-        codec::write_request(
-            &mut w,
-            &Request::new(Cmd::Activate {
-                id: 1,
-                key: None,
-            }),
-        )
-        .await
-        .unwrap();
+        codec::write_request(&mut w, &Request::new(Cmd::Activate { id: 1, key: None }))
+            .await
+            .unwrap();
         let resp = codec::read_response(&mut r).await.unwrap().unwrap();
 
         handle.abort();
@@ -177,15 +171,9 @@ mod server_tests {
         let id = state.queue.push(notif("x")).await;
 
         let (mut r, mut w) = connect(&path).await;
-        codec::write_request(
-            &mut w,
-            &Request::new(Cmd::Activate {
-                id,
-                key: None,
-            }),
-        )
-        .await
-        .unwrap();
+        codec::write_request(&mut w, &Request::new(Cmd::Activate { id, key: None }))
+            .await
+            .unwrap();
         let resp = codec::read_response(&mut r).await.unwrap().unwrap();
 
         handle.abort();

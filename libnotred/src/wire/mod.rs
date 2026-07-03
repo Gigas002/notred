@@ -179,7 +179,9 @@ pub enum IconRef {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Event {
-    Update { items: Vec<MinimalNotification> },
+    Update {
+        items: Vec<MinimalNotification>,
+    },
     /// Daemon config changed; subscribers should refresh cached policy.
     Reload,
     /// History database mutated (insert, remove, close).

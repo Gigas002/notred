@@ -1,5 +1,7 @@
 //! Application state and keyboard handling.
 
+mod run;
+
 use crate::ctl::{Ctl, CtlError, SubscribeEvent};
 use crate::model::HistoryRow;
 
@@ -9,10 +11,7 @@ pub enum View {
     /// History list (primary).
     List,
     /// Pick an action key for the selected notification.
-    Actions {
-        row_id: u32,
-        selected: usize,
-    },
+    Actions { row_id: u32, selected: usize },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -237,6 +236,8 @@ pub fn map_key(key: ratatui::crossterm::event::KeyEvent) -> KeyOp {
         _ => KeyOp::None,
     }
 }
+
+pub use run::run;
 
 #[cfg(test)]
 mod tests;

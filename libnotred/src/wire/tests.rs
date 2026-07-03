@@ -77,13 +77,7 @@ fn ok_payload_roundtrip() {
 fn activate_roundtrip() {
     let req_line = r#"{"v":1,"cmd":"activate","id":3}"#;
     let req: Request = serde_json::from_str(req_line).unwrap();
-    assert_eq!(
-        req.cmd,
-        Cmd::Activate {
-            id: 3,
-            key: None
-        }
-    );
+    assert_eq!(req.cmd, Cmd::Activate { id: 3, key: None });
 }
 
 #[test]

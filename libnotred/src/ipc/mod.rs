@@ -16,6 +16,3 @@ pub fn default_socket_path() -> std::path::PathBuf {
     let dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into());
     std::path::PathBuf::from(dir).join("notred.sock")
 }
-
-#[cfg(test)]
-mod tests;

@@ -120,7 +120,10 @@ impl Ctl {
     }
 
     /// Spawn `notredctl subscribe` and forward refresh events on `tx`.
-    pub fn spawn_subscribe(&self, tx: mpsc::Sender<SubscribeEvent>) -> Result<JoinHandle<()>, CtlError> {
+    pub fn spawn_subscribe(
+        &self,
+        tx: mpsc::Sender<SubscribeEvent>,
+    ) -> Result<JoinHandle<()>, CtlError> {
         let mut child = self
             .base()
             .arg("subscribe")
@@ -128,9 +131,10 @@ impl Ctl {
             .stderr(Stdio::null())
             .spawn()
             .map_err(map_io)?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            CtlError::Command("subscribe: no stdout".into())
-        })?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| CtlError::Command("subscribe: no stdout".into()))?;
         let handle = thread::spawn(move || {
             read_subscribe(stdout, tx);
             let _ = child.wait();

@@ -16,6 +16,10 @@ pub struct Cli {
     /// Unix socket path passed through to `notredctl --socket`.
     #[arg(long)]
     pub socket: Option<PathBuf>,
+
+    /// Optional config file (default: `$XDG_CONFIG_HOME/notred/tui.toml`).
+    #[arg(long)]
+    pub config: Option<PathBuf>,
 }
 
 #[cfg(test)]

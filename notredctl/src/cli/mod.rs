@@ -1,9 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use std::io::{self, Write};
 use std::path::PathBuf;
-
-use crate::error::CtlError;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -59,92 +56,6 @@ pub enum Command {
         /// Notification id.
         id: u32,
     },
-}
-
-impl Cli {
-    pub async fn run(self) -> Result<(), CtlError> {
-        let socket_path = self.socket.map_or_else(default_socket_path, Ok)?;
-        let mut client = libnotred::ipc::Client::connect(&socket_path)
-            .await
-            .map_err(|_| CtlError::DaemonUnreachable(socket_path.display().to_string()))?;
-
-        match self.command {
-            Command::Ping => {
-                client.ping().await?;
-                println!("pong");
-            }
-            Command::List => {
-                let items = client.list().await?;
-                let json = serde_json::to_string_pretty(&items).map_err(CtlError::Json)?;
-                println!("{json}");
-            }
-            Command::Subscribe => {
-                client
-                    .subscribe(|line| {
-                        let mut out = io::stdout().lock();
-                        writeln!(out, "{line}").map_err(libnotred::IpcError::from)?;
-                        out.flush().map_err(libnotred::IpcError::from)?;
-                        Ok(())
-                    })
-                    .await?;
-            }
-            Command::Close { id } => {
-                client.dismiss(id).await.map_err(|e| match e {
-                    libnotred::IpcError::ServerError(msg) => CtlError::Server(msg),
-                    other => CtlError::Ipc(other),
-                })?;
-                println!("closed {id}");
-            }
-            Command::CloseAll => {
-                client.close_all().await?;
-                println!("closed all");
-            }
-            Command::Reload => {
-                client.reload().await.map_err(map_server_err)?;
-                println!("reloaded");
-            }
-            Command::Pause => {
-                client.pause().await.map_err(map_server_err)?;
-                println!("paused");
-            }
-            Command::Unpause => {
-                client.unpause().await.map_err(map_server_err)?;
-                println!("unpaused");
-            }
-            Command::Activate { id, key } => {
-                client
-                    .activate(id, key.as_deref())
-                    .await
-                    .map_err(map_server_err)?;
-                println!("activated {id}");
-            }
-            #[cfg(feature = "history")]
-            Command::ListHistory => {
-                let rows = client.list_history(None, None, None).await.map_err(map_server_err)?;
-                let json = serde_json::to_string_pretty(&rows).map_err(CtlError::Json)?;
-                println!("{json}");
-            }
-            #[cfg(feature = "history")]
-            Command::Remove { id } => {
-                client.remove(id).await.map_err(map_server_err)?;
-                println!("removed {id}");
-            }
-        }
-        Ok(())
-    }
-}
-
-fn map_server_err(e: libnotred::IpcError) -> CtlError {
-    match e {
-        libnotred::IpcError::ServerError(msg) => CtlError::Server(msg),
-        other => CtlError::Ipc(other),
-    }
-}
-
-fn default_socket_path() -> Result<PathBuf, CtlError> {
-    let dir = std::env::var("XDG_RUNTIME_DIR")
-        .map_err(|_| CtlError::DaemonUnreachable("XDG_RUNTIME_DIR not set".to_owned()))?;
-    Ok(PathBuf::from(dir).join("notred.sock"))
 }
 
 #[cfg(test)]

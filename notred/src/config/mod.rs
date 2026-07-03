@@ -1,16 +1,16 @@
-//! XDG `notred.toml` config loader.
+//! XDG `notred.toml` config loader (deserialization only).
 
 use std::path::{Path, PathBuf};
 
-use libnotred::RuntimeConfig;
 #[cfg(feature = "history")]
 use libnotred::HistorySettings;
 use serde::Deserialize;
 
 use crate::error::NotredBinError;
 
+/// On-disk config shape (`notred.toml`).
 #[derive(Debug, Deserialize)]
-pub struct Config {
+pub struct FileConfig {
     /// Unix socket path for the IPC server.
     #[serde(default = "default_socket_path")]
     pub socket_path: PathBuf,
@@ -31,9 +31,9 @@ pub struct Config {
     #[serde(default = "default_history_path")]
     pub history_path: PathBuf,
 
-    /// Set when loading from an explicit `--config` path (used for reload).
+    /// Set when loading from an explicit path (not serialized).
     #[serde(skip)]
-    pub explicit_config: Option<PathBuf>,
+    pub source_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -80,7 +80,7 @@ fn default_history_path() -> PathBuf {
 
 #[cfg(feature = "history")]
 fn default_history_enabled() -> bool {
-    true
+    false
 }
 
 #[cfg(feature = "history")]
@@ -93,7 +93,7 @@ fn default_max_entries() -> u32 {
     5
 }
 
-impl Default for Config {
+impl Default for FileConfig {
     fn default() -> Self {
         Self {
             socket_path: default_socket_path(),
@@ -103,54 +103,35 @@ impl Default for Config {
             history: HistoryConfig::default(),
             #[cfg(feature = "history")]
             history_path: default_history_path(),
-            explicit_config: None,
+            source_path: None,
         }
     }
 }
 
-impl Config {
+impl FileConfig {
     /// Load from an explicit path, or discover via XDG, or return defaults.
     pub fn load(explicit: Option<&Path>) -> Result<Self, NotredBinError> {
         let cfg = if let Some(path) = explicit {
             let text = std::fs::read_to_string(path)
                 .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())))?;
-            let mut cfg: Config = toml::from_str(&text)
+            let mut cfg: FileConfig = toml::from_str(&text)
                 .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())))?;
-            cfg.explicit_config = Some(path.to_path_buf());
+            cfg.source_path = Some(path.to_path_buf());
             cfg
         } else {
             let xdg = Self::xdg_path();
             if xdg.exists() {
                 let text = std::fs::read_to_string(&xdg)
                     .map_err(|e| NotredBinError::Config(format!("{}: {e}", xdg.display())))?;
-                let mut cfg: Config = toml::from_str(&text)
+                let mut cfg: FileConfig = toml::from_str(&text)
                     .map_err(|e| NotredBinError::Config(format!("{}: {e}", xdg.display())))?;
-                cfg.explicit_config = Some(xdg);
+                cfg.source_path = Some(xdg);
                 cfg
             } else {
-                Config::default()
+                FileConfig::default()
             }
         };
         Ok(cfg)
-    }
-
-    pub fn runtime(&self) -> RuntimeConfig {
-        RuntimeConfig {
-            on_action: self.events.on_action.clone(),
-            #[cfg(feature = "history")]
-            history: HistorySettings {
-                enabled: self.history.enabled,
-                flush: self.history.flush,
-                max_entries: self.history.max_entries,
-            },
-        }
-    }
-
-    pub fn resolved_path(explicit: Option<&Path>) -> Option<PathBuf> {
-        explicit.map(Path::to_path_buf).or_else(|| {
-            let xdg = Self::xdg_path();
-            xdg.exists().then_some(xdg)
-        })
     }
 
     pub fn xdg_path() -> PathBuf {
@@ -159,6 +140,15 @@ impl Config {
             format!("{home}/.config")
         });
         PathBuf::from(base).join("notred").join("notred.toml")
+    }
+
+    #[cfg(feature = "history")]
+    pub(crate) fn history_settings(&self) -> HistorySettings {
+        HistorySettings {
+            enabled: self.history.enabled,
+            flush: self.history.flush,
+            max_entries: self.history.max_entries,
+        }
     }
 }
 

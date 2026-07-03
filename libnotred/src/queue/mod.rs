@@ -77,8 +77,8 @@ impl Queue {
         let id = assign_id(&mut inner, &mut notif);
 
         let broadcast = if inner.paused {
-            let changes_visible = notif.replaces_id > 0
-                && inner.items.iter().any(|n| n.id == notif.replaces_id);
+            let changes_visible =
+                notif.replaces_id > 0 && inner.items.iter().any(|n| n.id == notif.replaces_id);
             if changes_visible {
                 insert_or_replace(&mut inner.items, notif);
             } else {
@@ -199,10 +199,7 @@ fn remove_by_id(items: &mut Vec<Notification>, id: u32) -> bool {
 
 fn assign_id(inner: &mut QueueInner, notif: &mut Notification) -> u32 {
     if notif.replaces_id > 0 {
-        let exists = inner
-            .items
-            .iter()
-            .any(|n| n.id == notif.replaces_id)
+        let exists = inner.items.iter().any(|n| n.id == notif.replaces_id)
             || inner.held.iter().any(|n| n.id == notif.replaces_id);
         if exists {
             notif.id = notif.replaces_id;

@@ -33,7 +33,7 @@ pub struct HistorySettings {
 impl Default for HistorySettings {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             flush: true,
             max_entries: 5,
         }
@@ -173,7 +173,10 @@ impl HostState {
     }
 
     #[cfg(feature = "history")]
-    pub async fn list_history(&self, filter: HistoryFilter) -> Result<Vec<HistoryRow>, HistoryError> {
+    pub async fn list_history(
+        &self,
+        filter: HistoryFilter,
+    ) -> Result<Vec<HistoryRow>, HistoryError> {
         let store = self.history_store().await?;
         store.list(&filter).map_err(|_| HistoryError::Disabled)
     }
@@ -194,11 +197,7 @@ impl HostState {
     /// Resolve action key and enqueue activation (D-Bus signal + optional shell).
     pub async fn activate(&self, id: u32, key: Option<String>) -> Result<(), ActivateError> {
         let key = key.unwrap_or_else(|| "default".into());
-        let notif = self
-            .queue
-            .get(id)
-            .await
-            .ok_or(ActivateError::NotFound)?;
+        let notif = self.queue.get(id).await.ok_or(ActivateError::NotFound)?;
 
         if !notif.has_actions && key != "default" {
             return Err(ActivateError::InvalidActionKey { key });
@@ -217,3 +216,6 @@ impl HostState {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

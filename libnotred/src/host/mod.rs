@@ -7,9 +7,9 @@ use tokio::sync::broadcast;
 use zbus::connection;
 
 use crate::dbus::notifications::{self, Notifications};
-use crate::host::state::{ActivateEvent, HostState, RuntimeConfig};
 #[cfg(feature = "history")]
 use crate::history::HistoryStore;
+use crate::host::state::{ActivateEvent, HostState, RuntimeConfig};
 use crate::ipc::IpcError;
 use crate::ipc::server::Server;
 use crate::model::CloseReason;
@@ -71,16 +71,10 @@ impl NotredHost {
 
         #[cfg(feature = "history")]
         if self.config.runtime.history.enabled {
-            match HistoryStore::open(
-                &self.config.history_path,
-                self.config.runtime.history.flush,
-            ) {
+            match HistoryStore::open(&self.config.history_path, self.config.runtime.history.flush) {
                 Ok(store) => {
                     state
-                        .init_history(
-                            Arc::new(store),
-                            &self.config.runtime.history,
-                        )
+                        .init_history(Arc::new(store), &self.config.runtime.history)
                         .await;
                     tracing::info!(
                         path = %self.config.history_path.display(),
@@ -126,11 +120,7 @@ impl NotredHost {
             emit_signals_task(signal_conn, close_rx, activate_rx, signal_state).await;
         });
 
-        let server = Server::new(
-            &self.config.socket_path,
-            state,
-            self.config.reload.clone(),
-        );
+        let server = Server::new(&self.config.socket_path, state, self.config.reload.clone());
 
         tokio::select! {
             result = server.run() => {
@@ -206,6 +196,3 @@ async fn emit_signals_task(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

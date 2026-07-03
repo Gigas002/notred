@@ -11,6 +11,6 @@
 
 # Session notification history (requires `history` Cargo feature).
 # [history]
-# enabled = true
+# enabled = false   # default when feature is enabled
 # flush = true       # wipe history.db on each notred start
 # max_entries = 5    # 0 = unlimited

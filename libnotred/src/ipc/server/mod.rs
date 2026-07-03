@@ -5,11 +5,11 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::broadcast;
 
-use crate::host::state::{ActivateError, HostState, RuntimeConfig};
 #[cfg(feature = "history")]
 use crate::history::HistoryFilter;
 #[cfg(feature = "history")]
 use crate::host::state::HistoryError;
+use crate::host::state::{ActivateError, HostState, RuntimeConfig};
 use crate::ipc::IpcError;
 use crate::ipc::codec;
 use crate::model::CloseReason;
@@ -89,11 +89,7 @@ struct CmdContext<'a> {
     reload: Option<&'a (dyn Fn() -> Result<RuntimeConfig, String> + Send + Sync)>,
 }
 
-async fn handle_cmd<W>(
-    write: &mut W,
-    req: Request,
-    ctx: &CmdContext<'_>,
-) -> Result<(), IpcError>
+async fn handle_cmd<W>(write: &mut W, req: Request, ctx: &CmdContext<'_>) -> Result<(), IpcError>
 where
     W: AsyncWriteExt + Unpin,
 {
@@ -230,7 +226,10 @@ where
                     Err(HistoryError::NotFound) => {
                         codec::write_response(
                             write,
-                            &Response::err(ErrorCode::NotFound, format!("notification {id} not found")),
+                            &Response::err(
+                                ErrorCode::NotFound,
+                                format!("notification {id} not found"),
+                            ),
                         )
                         .await?;
                     }
@@ -305,10 +304,7 @@ where
     .await?;
 
     let mut line_buf = String::new();
-    let ctx = CmdContext {
-        state,
-        reload,
-    };
+    let ctx = CmdContext { state, reload };
 
     #[cfg(feature = "history")]
     {
@@ -472,3 +468,6 @@ where
     handle_cmd(write, req, ctx).await?;
     Ok(true)
 }
+
+#[cfg(test)]
+mod tests;

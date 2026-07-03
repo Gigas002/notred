@@ -78,12 +78,7 @@ impl Notifications {
         id: u32,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) {
-        if self
-            .state
-            .queue
-            .close(id, CloseReason::ClosedByCall)
-            .await
-        {
+        if self.state.queue.close(id, CloseReason::ClosedByCall).await {
             tracing::debug!(id, "FDN CloseNotification");
             if let Err(e) =
                 Self::notification_closed(&emitter, id, CloseReason::ClosedByCall.into()).await

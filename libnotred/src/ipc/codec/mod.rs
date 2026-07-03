@@ -46,3 +46,6 @@ where
     }
     Ok(Some(serde_json::from_str(line.trim())?))
 }
+
+#[cfg(test)]
+mod tests;

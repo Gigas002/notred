@@ -1,4 +1,4 @@
-use crate::app::{map_key, App, KeyOp, View};
+use crate::app::{App, KeyOp, View, map_key};
 use crate::ctl::Ctl;
 use crate::model::{HistoryRow, HistoryState, Urgency};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -56,7 +56,11 @@ fn back_returns_to_list() {
 fn quit_sets_flag() {
     let ctl = Ctl::new("notredctl", None);
     let mut app = App::new(ctl);
-    let q = KeyEvent::new_with_kind(KeyCode::Char('q'), KeyModifiers::empty(), KeyEventKind::Press);
+    let q = KeyEvent::new_with_kind(
+        KeyCode::Char('q'),
+        KeyModifiers::empty(),
+        KeyEventKind::Press,
+    );
     app.handle_key(map_key(q));
     assert!(app.should_quit());
 }

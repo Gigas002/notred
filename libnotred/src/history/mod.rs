@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Mutex;
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 
 use crate::model::Notification;
 use crate::wire::{HistoryRow, HistoryState, Urgency};
@@ -80,11 +80,7 @@ impl HistoryStore {
     /// Insert or replace a row for a new `Notify`.
     pub fn upsert_active(&self, notif: &Notification) -> Result<(), HistoryError> {
         let conn = self.conn.lock().expect("history db mutex poisoned");
-        let icon_json = notif
-            .icon
-            .as_ref()
-            .map(serde_json::to_string)
-            .transpose()?;
+        let icon_json = notif.icon.as_ref().map(serde_json::to_string).transpose()?;
         let action_keys = serde_json::to_string(&notif.action_keys)?;
         let urgency = urgency_str(notif.urgency);
 
@@ -140,8 +136,9 @@ impl HistoryStore {
     /// List rows matching optional filters, newest `received_at` first.
     pub fn list(&self, filter: &HistoryFilter) -> Result<Vec<HistoryRow>, HistoryError> {
         let conn = self.conn.lock().expect("history db mutex poisoned");
-        let mut sql =
-            String::from("SELECT id, app_id, summary, body, urgency, timeout_ms, icon_json, action_keys, has_actions, received_at, state FROM notifications WHERE 1=1");
+        let mut sql = String::from(
+            "SELECT id, app_id, summary, body, urgency, timeout_ms, icon_json, action_keys, has_actions, received_at, state FROM notifications WHERE 1=1",
+        );
         let mut bind: Vec<Box<dyn rusqlite::types::ToSql>> = vec![];
 
         if filter.active_only {
@@ -160,7 +157,8 @@ impl HistoryStore {
         let mut stmt = conn.prepare(&sql)?;
         let params: Vec<&dyn rusqlite::types::ToSql> = bind.iter().map(|b| b.as_ref()).collect();
         let rows = stmt.query_map(params.as_slice(), row_to_history)?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(HistoryError::from)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(HistoryError::from)
     }
 
     /// Drop oldest rows until at most `max` remain (`max == 0` = unlimited).

@@ -135,7 +135,7 @@ Check `which notred` and crates.io names before first release; document pronunci
 | `server` (default for `notred` bin) | `dbus/`, `queue/`, `timeouts/`, `spawn/`, `ipc/server/`, `host/`, `wire/` | **`notred`** binary |
 | `history` | `history/`, `rusqlite`; IPC `list_history`, `remove`, `history_changed`; ctl subcmds | Full install, **notred-tui** |
 
-Default **`notred`** binary: `features = ["server", "history"]`. Minimal: `cargo build -p notred --no-default-features --features server` — no SQLite, no history RPCs (§5.1).
+Default **`notred`** binary: `default = []` (no optional features). Enable history: `cargo build -p notred --features history`. Minimal daemon: `cargo build -p notred` (no SQLite, no history RPCs) — §5.1.
 
 **`notredctl`** is the **only IPC client** meant for external use: it connects to `notred.sock` and maps every subscriber-facing action to subcommands. Implementation may use `libnotred` (`wire/` + small client module) **inside this workspace** — that code is **not** a public integration API.
 
@@ -357,7 +357,7 @@ In `examples/config.toml` (schema source of truth):
 ```toml
 [history]
 # Requires notred built with Cargo feature "history". Ignored if feature off.
-enabled = true
+enabled = false
 
 # Wipe history.db when the notred process starts (before accepting Notify).
 #   true  = flush on each daemon start (default)
@@ -372,7 +372,7 @@ max_entries = 5
 
 | Key | Behavior |
 | --- | -------- |
-| **`enabled`** | **`true`** (default when `history` feature compiled): SQLite + history IPC. **`false`**: no DB writes; `notredctl list-history` / `remove` error or no-op. Ignored if binary lacks `history` feature. |
+| **`enabled`** | **`false`** (default when `history` feature compiled): set **`true`** to enable SQLite + history IPC. When **`false`**: no DB writes; `notredctl list-history` / `remove` error or no-op. Ignored if binary lacks `history` feature. |
 | **`flush`** | When **`enabled = true`**: **`true`** (default) wipes `history.db` on each **notred** start; **`false`** keeps file. **No timer** — startup only. |
 | **`max_entries`** | When **`enabled = true`**: **`0`** = unlimited until `remove` or flush on restart; **`N > 0`** (default **5**) = ring buffer (drop oldest after insert). |
 
@@ -520,8 +520,8 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 ### Phase 3 — History store (optional `history` feature)
 
-- [x] Cargo feature **`history`** on `libnotred` / `notred` / `notredctl` (default **on** for release binaries).
-- [x] `[history]` in `examples/config.toml` — `enabled` default **`true`**, `flush` **`true`**, `max_entries` **`5`** (§5.1).
+- [x] Cargo feature **`history`** on `libnotred` / `notred` / `notredctl` (default **off**; opt in with `--features history`).
+- [x] `[history]` in `examples/config.toml` — `enabled` default **`false`**, `flush` **`true`**, `max_entries` **`5`** (§5.1).
 - [x] `libnotred/src/history/` (feature-gated): schema + migrations, `rusqlite` (bundled), `$XDG_CACHE_HOME/notred/history.db`.
 - [x] On startup: if `flush = true`, wipe DB before first `Notify`; if `flush = false`, skip (no timer).
 - [x] On `Notify`: insert (unless disabled); enforce cap (delete oldest when `N > 0`).
@@ -556,7 +556,7 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 - [ ] `notify-send` works with **only** `notred` running (no subscriber) — proves FDN.
 - [ ] `notredctl reload|pause|close-all` works via IPC.
-- [ ] **History (optional feature):** default build includes `history`; minimal build without; `[history] enabled`, `flush`, `max_entries` documented.
+- [ ] **History (optional feature):** opt-in Cargo feature `history`; `[history] enabled` defaults **off**; `flush`, `max_entries` documented.
 - [ ] `notred-tui`: browse session history when history enabled.
 - [ ] **No** Wayland/Cairo in notred workspace.
 - [ ] IPC v1 documented + golden tests.

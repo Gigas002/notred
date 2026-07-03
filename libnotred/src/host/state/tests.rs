@@ -45,11 +45,11 @@ mod host_history_tests {
     async fn record_and_list_history() {
         let path = temp_db();
         let queue = Arc::new(Queue::new());
-        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        let mut runtime = RuntimeConfig::default();
+        runtime.history.enabled = true;
+        let state = HostState::new(runtime.clone(), Arc::clone(&queue));
         let store = Arc::new(HistoryStore::open(&path, true).unwrap());
-        state
-            .init_history(store, &RuntimeConfig::default().history)
-            .await;
+        state.init_history(store, &runtime.history).await;
         state.record_notify(&sample(1)).await;
         let rows = state.list_history(HistoryFilter::default()).await.unwrap();
         assert_eq!(rows.len(), 1);

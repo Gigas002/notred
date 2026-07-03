@@ -1,4 +1,4 @@
-use super::truncate;
+use super::util::truncate;
 
 #[test]
 fn truncate_short_unchanged() {

@@ -1,0 +1,50 @@
+//! Merge CLI, config file, and defaults into a single `Settings` object.
+
+use std::path::{Path, PathBuf};
+
+use libnotred::RuntimeConfig;
+
+use crate::cli::Cli;
+use crate::config::FileConfig;
+use crate::error::NotredBinError;
+
+/// Fully resolved runtime settings (only type passed below this boundary).
+#[derive(Debug, Clone)]
+pub struct Settings {
+    pub socket_path: PathBuf,
+    pub log_filter: String,
+    pub runtime: RuntimeConfig,
+    /// Path used for `reload` when the daemon was started with a config file.
+    pub config_path: Option<PathBuf>,
+    #[cfg(feature = "history")]
+    pub history_path: PathBuf,
+}
+
+pub fn resolve(_cli: &Cli, file: FileConfig) -> Settings {
+    let runtime = runtime_from_file(&file);
+    Settings {
+        socket_path: file.socket_path,
+        log_filter: file.log_filter,
+        runtime,
+        config_path: file.source_path,
+        #[cfg(feature = "history")]
+        history_path: file.history_path,
+    }
+}
+
+fn runtime_from_file(file: &FileConfig) -> RuntimeConfig {
+    RuntimeConfig {
+        on_action: file.events.on_action.clone(),
+        #[cfg(feature = "history")]
+        history: file.history_settings(),
+    }
+}
+
+/// Reload runtime policy from a config file path (used by the daemon `reload` RPC).
+pub fn runtime_from_path(path: &Path) -> Result<RuntimeConfig, NotredBinError> {
+    let file = FileConfig::load(Some(path))?;
+    Ok(runtime_from_file(&file))
+}
+
+#[cfg(test)]
+mod tests;

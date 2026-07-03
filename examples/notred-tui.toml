@@ -1,10 +1,5 @@
-# notred-tui config (place at $XDG_CONFIG_HOME/notred-tui/config.toml)
-# Phase 4: notred-tui uses `notredctl` only — no direct socket or history.db access.
-#
-# Requires:
-#   - `notred` running with history enabled
-#   - `notredctl` on $PATH (built with the `history` feature)
-#
-# Optional CLI flags (no config file required for v0):
-#   notred-tui --ctl /path/to/notredctl
-#   notred-tui --socket $XDG_RUNTIME_DIR/notred.sock
+# notred-tui config (place at $XDG_CONFIG_HOME/notred/tui.toml)
+# All fields are optional.
+
+# ctl = "/usr/local/bin/notredctl"
+# socket = "/run/user/1000/notred.sock"

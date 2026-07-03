@@ -1,23 +1,24 @@
+mod app;
 mod cli;
+mod commands;
 mod config;
-mod daemon;
 mod error;
 mod logger;
-mod ping;
+mod settings;
 
 use std::process::ExitCode;
 
 use clap::Parser;
 
-use crate::cli::{Cli, Command};
-use crate::config::Config;
-use crate::error::NotredBinError;
+use crate::cli::Cli;
+use crate::config::FileConfig;
+use crate::settings::resolve;
 
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let config = match Config::load(cli.config.as_deref()) {
+    let file = match FileConfig::load(cli.config.as_deref()) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("error: {e}");
@@ -25,9 +26,10 @@ async fn main() -> ExitCode {
         }
     };
 
-    logger::init(&config.log_filter);
+    let settings = resolve(&cli, file);
+    logger::init(&settings.log_filter);
 
-    match run(cli.command, config).await {
+    match app::run(cli.command, &settings).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             tracing::error!(%err, "notred failed");
@@ -36,9 +38,18 @@ async fn main() -> ExitCode {
     }
 }
 
-async fn run(command: Option<Command>, config: Config) -> Result<(), NotredBinError> {
-    match command.unwrap_or(Command::Run) {
-        Command::Run => daemon::run(&config).await,
-        Command::Ping => ping::ping(&config.socket_path).await,
+#[cfg(test)]
+mod main_tests {
+    use clap::Parser;
+
+    use crate::cli::Cli;
+    use crate::config::FileConfig;
+    use crate::settings::resolve;
+
+    #[test]
+    fn resolve_from_defaults() {
+        let cli = Cli::try_parse_from(["notred"]).unwrap();
+        let settings = resolve(&cli, FileConfig::default());
+        assert!(settings.socket_path.ends_with("notred.sock"));
     }
 }
