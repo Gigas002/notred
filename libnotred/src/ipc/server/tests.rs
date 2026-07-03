@@ -253,6 +253,58 @@ mod server_tests {
 
         assert!(matches!(resp, Response::Err(_)));
     }
+
+    #[tokio::test]
+    async fn input_dismisses_without_actions() {
+        let path = temp_socket("input-dismiss");
+        let (handle, state) = start_server(&path).await;
+        let mut plain = notif("plain");
+        plain.has_actions = false;
+        plain.action_keys.clear();
+        let id = state.queue.push(plain).await;
+
+        let (mut r, mut w) = connect(&path).await;
+        codec::write_request(
+            &mut w,
+            &Request::new(Cmd::Input {
+                id,
+                event_kind: "button_left".into(),
+            }),
+        )
+        .await
+        .unwrap();
+        let resp = codec::read_response(&mut r).await.unwrap().unwrap();
+
+        handle.abort();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(resp, Response::ok(OkPayload::Ok));
+        assert!(state.queue.is_empty().await);
+    }
+
+    #[tokio::test]
+    async fn input_invalid_kind_returns_error() {
+        let path = temp_socket("input-bad-kind");
+        let (handle, state) = start_server(&path).await;
+        let id = state.queue.push(notif("x")).await;
+
+        let (mut r, mut w) = connect(&path).await;
+        codec::write_request(
+            &mut w,
+            &Request::new(Cmd::Input {
+                id,
+                event_kind: "left_button_click".into(),
+            }),
+        )
+        .await
+        .unwrap();
+        let resp = codec::read_response(&mut r).await.unwrap().unwrap();
+
+        handle.abort();
+        let _ = std::fs::remove_file(&path);
+
+        assert!(matches!(resp, Response::Err(_)));
+    }
 }
 
 mod golden_tests {
@@ -267,6 +319,7 @@ mod golden_tests {
             "list",
             "subscribe",
             "activate",
+            "input",
             "reload",
             "pause",
             "list_history",

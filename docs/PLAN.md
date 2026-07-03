@@ -743,19 +743,19 @@ Platform gaps needed before graphical subscribers match mako/dunst expectations.
 
 **Verify:** `notify-send` with short timeout auto-closes; seventh notification with `max_visible = 6` drops oldest from `notredctl list`; per-app `on_button_left` override visible in merged config dump (debug subcommand or test helper).
 
-### Phase 6 — Subscriber input events + `[events]` hooks
+### Phase 6 — Subscriber input events + `[events]` hooks ✅
 
 **Required for poshanka per-button gestures** ([poshanka PLAN §5.6](https://github.com/Gigas002/poshanka/blob/master/docs/PLAN.md#56-upstream-todo--notred--notredctl)). Implements the abar/trayd-style split for **behavior**: UI reports gestures; daemon runs hooks.
 
-- [ ] IPC `cmd: "input"` with `{ "id", "event_kind" }` in `libnotred/src/wire/`.
-- [ ] `notredctl input <id> <event_kind>` in `notredctl/src/cli/mod.rs`.
-- [ ] Daemon handler: resolve notification, merge §5.2 overrides, spawn matching hook via `libnotred/src/spawn/`.
-- [ ] Extend `EventsConfig` + `examples/config.toml`: all six hooks; global `[events]` + per-app / per-urgency fragments (§5.2).
-- [ ] `resolve_events_for(notification)` — merge override layers before spawn (port poshanka `resolve_layers` semantics).
-- [ ] Default policy when hook absent (§5.2).
-- [ ] FDN side effects: correct `NotificationClosed` / `ActionInvoked` / dismiss reason when hook or default policy implies dismiss or activate.
-- [ ] Document event kinds, precedence vs `activate`/`close`, env vars in `docs/IPC.md`.
-- [ ] Golden fixtures: `examples/ipc-examples/input-*.jsonl`.
+- [x] IPC `cmd: "input"` with `{ "id", "event_kind" }` in `libnotred/src/wire/`.
+- [x] `notredctl input <id> <event_kind>` in `notredctl/src/cli/mod.rs`.
+- [x] Daemon handler: resolve notification, merge §5.2 overrides, spawn matching hook via `libnotred/src/spawn/`.
+- [x] Extend `EventsConfig` + `examples/config.toml`: all six hooks; global `[events]` + per-app / per-urgency fragments (§5.2).
+- [x] `resolve_events_for(notification)` — merge override layers before spawn (port poshanka `resolve_layers` semantics).
+- [x] Default policy when hook absent (§5.2).
+- [x] FDN side effects: correct `NotificationClosed` / `ActionInvoked` / dismiss reason when hook or default policy implies dismiss or activate.
+- [x] Document event kinds, precedence vs `activate`/`close`, env vars in `docs/IPC.md`.
+- [x] Golden fixtures: `examples/ipc-examples/input-*.jsonl`.
 
 **Verify:** `notredctl input 1 button_left` with configured hook runs shell; `dbus-monitor` shows expected signals; poshanka (or fake client) can drive full gesture path without poshanka reading notred config.
 
@@ -777,7 +777,7 @@ Platform gaps needed before graphical subscribers match mako/dunst expectations.
 - [ ] `notredctl reload|pause|close-all` works via IPC.
 - [x] **History (optional feature):** opt-in Cargo feature `history`; `[history] enabled` defaults **off**; `flush`, `max_entries` documented (README + `examples/config.toml`).
 - [ ] `notred-tui`: browse session history when history enabled.
-- [ ] **`notredctl input`** + `[events].on_button_*` — graphical subscribers can delegate all pointer policy to notred ([Phase 6](#phase-6--subscriber-input-events--events-hooks)).
+- [x] **`notredctl input`** + `[events].on_button_*` — graphical subscribers can delegate all pointer policy to notred ([Phase 6](#phase-6--subscriber-input-events--events-hooks)).
 - [ ] **Timeouts** + **`max_visible`** — active queue behaves like a real notification daemon ([Phase 5](#phase-5--queue-policy-timeouts-max_visible-overrides)).
 - [ ] **No** Wayland/Cairo in notred workspace.
 - [ ] IPC v1 documented + golden tests.

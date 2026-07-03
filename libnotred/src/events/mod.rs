@@ -2,9 +2,6 @@
 
 use crate::wire::Urgency;
 
-/// Shell argv for one event hook (`[events].on_*` in config).
-pub type HookArgv = Vec<String>;
-
 /// Merged event hooks for a notification context.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EventsHooks {
@@ -14,6 +11,48 @@ pub struct EventsHooks {
     pub on_button_right: Option<HookArgv>,
     pub on_touch: Option<HookArgv>,
     pub on_notify: Option<HookArgv>,
+}
+
+/// Shell argv for one event hook (`[events].on_*` in config).
+pub type HookArgv = Vec<String>;
+
+/// Subscriber-reported pointer gesture (`notredctl input`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventKind {
+    ButtonLeft,
+    ButtonMiddle,
+    ButtonRight,
+    Touch,
+}
+
+impl EventKind {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "button_left" => Some(Self::ButtonLeft),
+            "button_middle" => Some(Self::ButtonMiddle),
+            "button_right" => Some(Self::ButtonRight),
+            "touch" => Some(Self::Touch),
+            _ => None,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ButtonLeft => "button_left",
+            Self::ButtonMiddle => "button_middle",
+            Self::ButtonRight => "button_right",
+            Self::Touch => "touch",
+        }
+    }
+
+    pub fn hook<'a>(&self, hooks: &'a EventsHooks) -> Option<&'a HookArgv> {
+        match self {
+            Self::ButtonLeft => hooks.on_button_left.as_ref(),
+            Self::ButtonMiddle => hooks.on_button_middle.as_ref(),
+            Self::ButtonRight => hooks.on_button_right.as_ref(),
+            Self::Touch => hooks.on_touch.as_ref(),
+        }
+    }
 }
 
 /// Override fragment metadata (`[override]` table in a fragment file).

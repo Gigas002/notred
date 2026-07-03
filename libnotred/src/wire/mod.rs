@@ -56,6 +56,11 @@ pub enum Cmd {
     Remove {
         id: u32,
     },
+    /// Report a pointer gesture; runs matching `[events]` hook or default policy.
+    Input {
+        id: u32,
+        event_kind: String,
+    },
 }
 
 /// Daemon → consumer response. Tries `Err` variant first on deserialization.

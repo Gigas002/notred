@@ -46,6 +46,13 @@ pub enum Command {
         /// Action key (defaults to `default` when omitted).
         key: Option<String>,
     },
+    /// Report a pointer gesture (`button_left`, `button_middle`, `button_right`, `touch`).
+    Input {
+        /// Notification id.
+        id: u32,
+        /// Event kind (see `docs/IPC.md`).
+        event_kind: String,
+    },
     /// Session history rows as JSON on stdout (`history` feature).
     #[cfg(feature = "history")]
     #[command(name = "list-history")]

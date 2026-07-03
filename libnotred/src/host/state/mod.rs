@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use tokio::sync::{RwLock, broadcast};
 
-use crate::events::EventsPolicy;
+use crate::events::{EventKind, EventsPolicy};
 #[cfg(feature = "history")]
 use crate::history::{HistoryFilter, HistoryStore};
 use crate::model::Notification;
@@ -72,6 +72,14 @@ pub struct ActivateEvent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActivateError {
     NotFound,
+    InvalidActionKey { key: String },
+}
+
+/// Errors from [`HostState::handle_input`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InputError {
+    NotFound,
+    InvalidEventKind { kind: String },
     InvalidActionKey { key: String },
 }
 
@@ -255,6 +263,45 @@ impl HostState {
             urgency: notif.urgency,
         };
         let _ = self.activate_tx.send(ev);
+        Ok(())
+    }
+
+    /// Handle a subscriber pointer gesture: run merged hook or default policy.
+    pub async fn handle_input(&self, id: u32, event_kind: &str) -> Result<(), InputError> {
+        let kind = EventKind::parse(event_kind).ok_or_else(|| InputError::InvalidEventKind {
+            kind: event_kind.to_string(),
+        })?;
+
+        let notif = self.queue.get(id).await.ok_or(InputError::NotFound)?;
+        let cfg = self.config.read().await.clone();
+        let hooks = cfg.events.resolve(&notif.app_id, notif.urgency);
+
+        if let Some(argv) = kind.hook(&hooks) {
+            crate::spawn::spawn_on_input(argv, &notif, kind);
+            return Ok(());
+        }
+
+        match kind {
+            EventKind::ButtonLeft | EventKind::Touch => {
+                if notif.has_actions {
+                    self.activate(id, None).await.map_err(|e| match e {
+                        ActivateError::NotFound => InputError::NotFound,
+                        ActivateError::InvalidActionKey { key } => {
+                            InputError::InvalidActionKey { key }
+                        }
+                    })?;
+                } else {
+                    self.queue
+                        .close(id, crate::model::CloseReason::DismissedByUser)
+                        .await;
+                }
+            }
+            EventKind::ButtonMiddle | EventKind::ButtonRight => {
+                self.queue
+                    .close(id, crate::model::CloseReason::DismissedByUser)
+                    .await;
+            }
+        }
         Ok(())
     }
 }

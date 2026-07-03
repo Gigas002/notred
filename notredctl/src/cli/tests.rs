@@ -72,6 +72,18 @@ fn activate_subcommand_parses() {
     ));
 }
 
+#[test]
+fn input_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "input", "5", "button_left"]).unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Input {
+            id: 5,
+            event_kind,
+        } if event_kind == "button_left"
+    ));
+}
+
 #[cfg(feature = "history")]
 #[test]
 fn list_history_subcommand_parses() {
