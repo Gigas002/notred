@@ -32,6 +32,28 @@ fn load_returns_defaults_when_no_file() {
 }
 
 #[test]
+fn queue_section_parses() {
+    let toml = r#"
+[queue]
+max_visible = 6
+default_timeout_ms = 8000
+"#;
+    let cfg: FileConfig = toml::from_str(toml).unwrap();
+    assert_eq!(cfg.queue.max_visible, 6);
+    assert_eq!(cfg.queue.default_timeout_ms, 8000);
+}
+
+#[test]
+fn paths_overrides_parses() {
+    let toml = r#"
+[paths]
+overrides = ["apps/foo/config.toml"]
+"#;
+    let cfg: FileConfig = toml::from_str(toml).unwrap();
+    assert_eq!(cfg.paths.overrides, vec!["apps/foo/config.toml"]);
+}
+
+#[test]
 fn events_on_action_parses() {
     let toml = r#"
 [events]

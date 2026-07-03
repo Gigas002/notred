@@ -61,7 +61,7 @@ impl Notifications {
             timestamp: now_unix(),
         };
 
-        let id = self.state.queue.push(notif.clone()).await;
+        let id = self.state.push_notification(notif).await;
         #[cfg(feature = "history")]
         {
             let mut stored = notif;

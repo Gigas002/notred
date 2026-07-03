@@ -4,20 +4,39 @@ use std::sync::Arc;
 
 use tokio::sync::{RwLock, broadcast};
 
+use crate::events::EventsPolicy;
 #[cfg(feature = "history")]
 use crate::history::{HistoryFilter, HistoryStore};
-#[cfg(feature = "history")]
 use crate::model::Notification;
+use crate::timeouts::TimeoutManager;
 #[cfg(feature = "history")]
 use crate::wire::HistoryRow;
 
 /// Runtime policy loaded from `notred.toml` (plain structs — no TOML in the library).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct RuntimeConfig {
-    /// Optional argv for an action-activation hook (`[events].on_action`).
-    pub on_action: Option<Vec<String>>,
+    /// Active queue cap (`0` = unlimited).
+    pub max_visible: u32,
+    /// Default auto-dismiss when FDN `expire_timeout` is `-1` (`0` = persistent).
+    pub default_timeout_ms: u32,
+    pub events: EventsPolicy,
     #[cfg(feature = "history")]
     pub history: HistorySettings,
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            max_visible: 0,
+            default_timeout_ms: 0,
+            events: EventsPolicy {
+                base: Default::default(),
+                overrides: vec![],
+            },
+            #[cfg(feature = "history")]
+            history: HistorySettings::default(),
+        }
+    }
 }
 
 /// `[history]` section (`history` feature).
@@ -46,6 +65,7 @@ pub struct ActivateEvent {
     pub id: u32,
     pub key: String,
     pub app_id: String,
+    pub urgency: crate::wire::Urgency,
 }
 
 /// Errors from [`HostState::activate`].
@@ -65,6 +85,7 @@ pub enum HistoryError {
 /// Shared state for D-Bus, IPC, and background tasks.
 pub struct HostState {
     pub queue: Arc<crate::queue::Queue>,
+    pub timeouts: Arc<TimeoutManager>,
     config: RwLock<RuntimeConfig>,
     activate_tx: broadcast::Sender<ActivateEvent>,
     reload_tx: broadcast::Sender<()>,
@@ -76,12 +97,14 @@ pub struct HostState {
 
 impl HostState {
     pub fn new(runtime: RuntimeConfig, queue: Arc<crate::queue::Queue>) -> Arc<Self> {
+        let timeouts = Arc::new(TimeoutManager::new(Arc::clone(&queue)));
         let (activate_tx, _) = broadcast::channel(64);
         let (reload_tx, _) = broadcast::channel(16);
         #[cfg(feature = "history")]
         let (history_changed_tx, _) = broadcast::channel(64);
-        Arc::new(Self {
-            queue,
+        let state = Arc::new(Self {
+            queue: Arc::clone(&queue),
+            timeouts,
             config: RwLock::new(runtime),
             activate_tx,
             reload_tx,
@@ -89,7 +112,11 @@ impl HostState {
             history: RwLock::new(None),
             #[cfg(feature = "history")]
             history_changed_tx,
-        })
+        });
+        let cancel_timeouts = Arc::clone(&state.timeouts);
+        let close_rx = queue.subscribe_closes();
+        cancel_timeouts.spawn_cancel_task(close_rx);
+        state
     }
 
     pub async fn runtime_config(&self) -> RuntimeConfig {
@@ -97,6 +124,7 @@ impl HostState {
     }
 
     pub async fn apply_config(&self, cfg: RuntimeConfig) {
+        self.queue.set_max_visible(cfg.max_visible).await;
         #[cfg(feature = "history")]
         {
             let old = self.config.read().await.history.clone();
@@ -110,6 +138,19 @@ impl HostState {
         }
         *self.config.write().await = cfg;
         let _ = self.reload_tx.send(());
+    }
+
+    /// Push to the active queue, schedule expiry, and run `on_notify` hook if configured.
+    pub async fn push_notification(&self, mut notif: Notification) -> u32 {
+        let cfg = self.config.read().await.clone();
+        let id = self.queue.push(notif.clone()).await;
+        notif.id = id;
+        self.timeouts
+            .schedule(id, notif.timeout_ms, cfg.default_timeout_ms)
+            .await;
+        let hooks = cfg.events.resolve(&notif.app_id, notif.urgency);
+        crate::spawn::spawn_on_notify(&hooks, &notif);
+        id
     }
 
     pub fn subscribe_activates(&self) -> broadcast::Receiver<ActivateEvent> {
@@ -211,6 +252,7 @@ impl HostState {
             id,
             key,
             app_id: notif.app_id,
+            urgency: notif.urgency,
         };
         let _ = self.activate_tx.send(ev);
         Ok(())

@@ -8,6 +8,12 @@ use serde::Deserialize;
 
 use crate::error::NotredBinError;
 
+pub mod events;
+pub mod overrides;
+
+pub use events::EventsConfig;
+pub use overrides::load_events_policy;
+
 /// On-disk config shape (`notred.toml`).
 #[derive(Debug, Deserialize)]
 pub struct FileConfig {
@@ -18,6 +24,12 @@ pub struct FileConfig {
     /// Tracing filter string (overridden by `RUST_LOG`).
     #[serde(default = "default_log_filter")]
     pub log_filter: String,
+
+    #[serde(default)]
+    pub paths: PathsConfig,
+
+    #[serde(default)]
+    pub queue: QueueConfig,
 
     #[serde(default)]
     pub events: EventsConfig,
@@ -37,10 +49,28 @@ pub struct FileConfig {
 }
 
 #[derive(Debug, Default, Deserialize)]
-pub struct EventsConfig {
-    /// Optional argv invoked on action activation (`NOTRED_*` env vars set).
+pub struct PathsConfig {
     #[serde(default)]
-    pub on_action: Option<Vec<String>>,
+    pub overrides: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct QueueConfig {
+    /// Maximum active notifications (`0` = unlimited).
+    #[serde(default)]
+    pub max_visible: u32,
+    /// Default auto-dismiss when FDN sends `expire_timeout = -1` (`0` = no timer).
+    #[serde(default = "default_default_timeout_ms")]
+    pub default_timeout_ms: u32,
+}
+
+impl Default for QueueConfig {
+    fn default() -> Self {
+        Self {
+            max_visible: 0,
+            default_timeout_ms: default_default_timeout_ms(),
+        }
+    }
 }
 
 #[cfg(feature = "history")]
@@ -73,6 +103,10 @@ fn default_log_filter() -> String {
     "warn".into()
 }
 
+fn default_default_timeout_ms() -> u32 {
+    0
+}
+
 #[cfg(feature = "history")]
 fn default_history_path() -> PathBuf {
     libnotred::history::default_history_path()
@@ -98,6 +132,8 @@ impl Default for FileConfig {
         Self {
             socket_path: default_socket_path(),
             log_filter: default_log_filter(),
+            paths: PathsConfig::default(),
+            queue: QueueConfig::default(),
             events: EventsConfig::default(),
             #[cfg(feature = "history")]
             history: HistoryConfig::default(),
@@ -140,6 +176,12 @@ impl FileConfig {
             format!("{home}/.config")
         });
         PathBuf::from(base).join("notred").join("notred.toml")
+    }
+
+    pub fn config_dir(&self) -> Option<PathBuf> {
+        self.source_path
+            .as_ref()
+            .and_then(|p| p.parent().map(Path::to_path_buf))
     }
 
     #[cfg(feature = "history")]

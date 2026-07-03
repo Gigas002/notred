@@ -1,0 +1,6 @@
+[override]
+type = "urgency"
+level = "low"
+
+[events]
+# on_button_left = ["sh", "-c", "echo global low urgency left"]

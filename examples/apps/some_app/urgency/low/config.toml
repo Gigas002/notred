@@ -1,0 +1,6 @@
+[override]
+type = "urgency"
+level = "low"
+
+[events]
+# on_touch = ["sh", "-c", "echo some_app low touch"]

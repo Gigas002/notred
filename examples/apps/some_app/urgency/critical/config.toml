@@ -1,0 +1,6 @@
+[override]
+type = "urgency"
+level = "critical"
+
+[events]
+# on_notify = ["sh", "-c", "echo some_app critical notify $NOTRED_SUMMARY"]

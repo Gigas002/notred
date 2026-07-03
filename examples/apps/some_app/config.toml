@@ -1,0 +1,12 @@
+[override]
+type = "app"
+name = "some_app"
+
+[paths]
+overrides = [
+    "urgency/low/config.toml",
+    "urgency/critical/config.toml",
+]
+
+[events]
+# on_button_left = ["sh", "-c", "echo some_app left $NOTRED_ID"]
