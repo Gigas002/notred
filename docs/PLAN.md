@@ -535,10 +535,10 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 ### Phase 4 — `notred-tui` manager (requires `history`)
 
-- [ ] Crate / binary depends on `notred`+`notredctl` with **`history`** feature; document if history disabled at runtime.
-- [ ] Child process or periodic spawn: **`notredctl subscribe`**, parse JSON lines from stdout.
-- [ ] ratatui: `notredctl list-history` for paint; **`d`** → `notredctl remove <id>`; activate via `notredctl activate` (arrows-first keys).
-- [ ] Dogfood: receive notifications while TUI **closed**, then open TUI and see full retained set.
+- [x] Crate / binary depends on `notred`+`notredctl` with **`history`** feature; document if history disabled at runtime.
+- [x] Child process or periodic spawn: **`notredctl subscribe`**, parse JSON lines from stdout.
+- [x] ratatui: `notredctl list-history` for paint; **`d`** → `notredctl remove <id>`; activate via `notredctl activate` (arrows-first keys).
+- [x] Dogfood: receive notifications while TUI **closed**, then open TUI and see full retained set.
 
 **Verify:** full manager workflow with **only** `notred` + `notred-tui`; history survives TUI not running within same notred session.
 

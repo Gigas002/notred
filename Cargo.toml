@@ -24,3 +24,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rusqlite = { version = "0.38", features = ["bundled"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
