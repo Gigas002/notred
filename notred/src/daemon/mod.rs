@@ -22,6 +22,8 @@ pub async fn run(config: &Config) -> Result<(), NotredBinError> {
     let host_config = HostConfig {
         socket_path: config.socket_path.clone(),
         runtime: config.runtime(),
+        #[cfg(feature = "history")]
+        history_path: config.history_path.clone(),
         reload,
     };
     let host = NotredHost::new(host_config);

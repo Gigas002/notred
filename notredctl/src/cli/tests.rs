@@ -71,3 +71,17 @@ fn activate_subcommand_parses() {
         } if k == "open"
     ));
 }
+
+#[cfg(feature = "history")]
+#[test]
+fn list_history_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "list-history"]).unwrap();
+    assert!(matches!(cli.command, Command::ListHistory));
+}
+
+#[cfg(feature = "history")]
+#[test]
+fn remove_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "remove", "3"]).unwrap();
+    assert!(matches!(cli.command, Command::Remove { id: 3 }));
+}

@@ -110,6 +110,42 @@ impl Client {
         }
     }
 
+    /// Session history snapshot.
+    pub async fn list_history(
+        &mut self,
+        active_only: Option<bool>,
+        app_id: Option<String>,
+        since: Option<i64>,
+    ) -> Result<Vec<crate::wire::HistoryRow>, IpcError> {
+        codec::write_request(
+            &mut self.write,
+            &Request::new(Cmd::ListHistory {
+                active_only,
+                app_id,
+                since,
+            }),
+        )
+        .await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(ok)) => match ok.payload {
+                OkPayload::History { rows } => Ok(rows),
+                _ => Err(IpcError::UnexpectedResponse("list_history payload")),
+            },
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("list_history")),
+        }
+    }
+
+    /// Remove a history row; dismiss on FDN if still active.
+    pub async fn remove(&mut self, id: u32) -> Result<(), IpcError> {
+        codec::write_request(&mut self.write, &Request::new(Cmd::Remove { id })).await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(_)) => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("remove")),
+        }
+    }
+
     /// Invoke `on_line` for each NDJSON response line until EOF.
     pub async fn subscribe<F>(&mut self, mut on_line: F) -> Result<(), IpcError>
     where

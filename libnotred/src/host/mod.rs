@@ -8,6 +8,8 @@ use zbus::connection;
 
 use crate::dbus::notifications::{self, Notifications};
 use crate::host::state::{ActivateEvent, HostState, RuntimeConfig};
+#[cfg(feature = "history")]
+use crate::history::HistoryStore;
 use crate::ipc::IpcError;
 use crate::ipc::server::Server;
 use crate::model::CloseReason;
@@ -21,6 +23,8 @@ pub mod state;
 pub struct HostConfig {
     pub socket_path: PathBuf,
     pub runtime: RuntimeConfig,
+    #[cfg(feature = "history")]
+    pub history_path: PathBuf,
     /// Reload runtime policy from disk (returns updated [`RuntimeConfig`]).
     pub reload: Option<Arc<dyn Fn() -> Result<RuntimeConfig, String> + Send + Sync>>,
 }
@@ -65,8 +69,45 @@ impl NotredHost {
         let queue = Arc::new(Queue::new());
         let state = HostState::new(self.config.runtime.clone(), Arc::clone(&queue));
 
+        #[cfg(feature = "history")]
+        if self.config.runtime.history.enabled {
+            match HistoryStore::open(
+                &self.config.history_path,
+                self.config.runtime.history.flush,
+            ) {
+                Ok(store) => {
+                    state
+                        .init_history(
+                            Arc::new(store),
+                            &self.config.runtime.history,
+                        )
+                        .await;
+                    tracing::info!(
+                        path = %self.config.history_path.display(),
+                        "history database open"
+                    );
+                }
+                Err(e) => tracing::error!(%e, "failed to open history database"),
+            }
+        }
+
         let close_rx = queue.subscribe_closes();
         let activate_rx = state.subscribe_activates();
+
+        #[cfg(feature = "history")]
+        {
+            let history_state = Arc::clone(&state);
+            let mut history_close_rx = queue.subscribe_closes();
+            tokio::spawn(async move {
+                loop {
+                    match history_close_rx.recv().await {
+                        Ok(ev) => history_state.mark_history_closed(ev.id).await,
+                        Err(broadcast::error::RecvError::Lagged(_)) => {}
+                        Err(broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
+        }
 
         let conn = connection::Builder::session()?
             .name(notifications::BUS_NAME)?

@@ -281,6 +281,8 @@ mod golden_tests {
             "activate",
             "reload",
             "pause",
+            "list_history",
+            "remove",
         ] {
             let path = root.join(format!("{name}.jsonl"));
             let text = std::fs::read_to_string(&path).unwrap_or_else(|e| {

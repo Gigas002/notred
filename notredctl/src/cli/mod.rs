@@ -49,6 +49,16 @@ pub enum Command {
         /// Action key (defaults to `default` when omitted).
         key: Option<String>,
     },
+    /// Session history rows as JSON on stdout (`history` feature).
+    #[cfg(feature = "history")]
+    #[command(name = "list-history")]
+    ListHistory,
+    /// Remove from history; dismiss on FDN if still active (`history` feature).
+    #[cfg(feature = "history")]
+    Remove {
+        /// Notification id.
+        id: u32,
+    },
 }
 
 impl Cli {
@@ -107,6 +117,17 @@ impl Cli {
                     .await
                     .map_err(map_server_err)?;
                 println!("activated {id}");
+            }
+            #[cfg(feature = "history")]
+            Command::ListHistory => {
+                let rows = client.list_history(None, None, None).await.map_err(map_server_err)?;
+                let json = serde_json::to_string_pretty(&rows).map_err(CtlError::Json)?;
+                println!("{json}");
+            }
+            #[cfg(feature = "history")]
+            Command::Remove { id } => {
+                client.remove(id).await.map_err(map_server_err)?;
+                println!("removed {id}");
             }
         }
         Ok(())

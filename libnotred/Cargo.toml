@@ -13,6 +13,7 @@ readme = "../README.md"
 default = ["ipc"]
 ipc = ["dep:serde", "dep:serde_json"]
 server = ["ipc", "dep:zbus"]
+history = ["server", "dep:rusqlite"]
 
 [dependencies]
 serde = { workspace = true, optional = true }
@@ -21,3 +22,4 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
 zbus = { workspace = true, optional = true }
+rusqlite = { workspace = true, optional = true }

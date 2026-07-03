@@ -6,6 +6,10 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::broadcast;
 
 use crate::host::state::{ActivateError, HostState, RuntimeConfig};
+#[cfg(feature = "history")]
+use crate::history::HistoryFilter;
+#[cfg(feature = "history")]
+use crate::host::state::HistoryError;
 use crate::ipc::IpcError;
 use crate::ipc::codec;
 use crate::model::CloseReason;
@@ -173,6 +177,82 @@ where
             ctx.state.queue.set_paused(false).await;
             codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
         }
+        Cmd::ListHistory {
+            active_only,
+            app_id,
+            since,
+        } => {
+            #[cfg(feature = "history")]
+            {
+                let filter = HistoryFilter {
+                    active_only: active_only.unwrap_or(false),
+                    app_id,
+                    since,
+                };
+                match ctx.state.list_history(filter).await {
+                    Ok(rows) => {
+                        codec::write_response(write, &Response::ok(OkPayload::History { rows }))
+                            .await?;
+                    }
+                    Err(HistoryError::Disabled) => {
+                        codec::write_response(
+                            write,
+                            &Response::err(ErrorCode::NotImplemented, "history disabled"),
+                        )
+                        .await?;
+                    }
+                    Err(HistoryError::NotFound) => {
+                        codec::write_response(
+                            write,
+                            &Response::err(ErrorCode::NotFound, "history not available"),
+                        )
+                        .await?;
+                    }
+                }
+            }
+            #[cfg(not(feature = "history"))]
+            {
+                let _ = (active_only, app_id, since);
+                codec::write_response(
+                    write,
+                    &Response::err(ErrorCode::NotImplemented, "history feature not compiled"),
+                )
+                .await?;
+            }
+        }
+        Cmd::Remove { id } => {
+            #[cfg(feature = "history")]
+            {
+                match ctx.state.remove_history(id).await {
+                    Ok(()) => {
+                        codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
+                    }
+                    Err(HistoryError::NotFound) => {
+                        codec::write_response(
+                            write,
+                            &Response::err(ErrorCode::NotFound, format!("notification {id} not found")),
+                        )
+                        .await?;
+                    }
+                    Err(HistoryError::Disabled) => {
+                        codec::write_response(
+                            write,
+                            &Response::err(ErrorCode::NotImplemented, "history disabled"),
+                        )
+                        .await?;
+                    }
+                }
+            }
+            #[cfg(not(feature = "history"))]
+            {
+                let _ = id;
+                codec::write_response(
+                    write,
+                    &Response::err(ErrorCode::NotImplemented, "history feature not compiled"),
+                )
+                .await?;
+            }
+        }
         Cmd::Subscribe => {
             return Err(IpcError::UnexpectedResponse("subscribe in handle_cmd"));
         }
@@ -230,66 +310,165 @@ where
         reload,
     };
 
-    loop {
-        tokio::select! {
-            result = change_rx.recv() => {
-                match result {
-                    Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
-                        let items = state.queue.snapshot().await;
-                        codec::write_response(
-                            write,
-                            &Response::ok(OkPayload::Event {
-                                event: Event::Update { items },
-                            }),
-                        )
-                        .await?;
+    #[cfg(feature = "history")]
+    {
+        let mut history_rx = state.subscribe_history_changes();
+        loop {
+            tokio::select! {
+                result = change_rx.recv() => {
+                    if !handle_change_event(result, write, state).await? {
+                        break;
                     }
-                    Err(broadcast::error::RecvError::Closed) => break,
                 }
-            }
-            result = reload_rx.recv() => {
-                match result {
-                    Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
-                        codec::write_response(
-                            write,
-                            &Response::ok(OkPayload::Event {
-                                event: Event::Reload,
-                            }),
-                        )
-                        .await?;
+                result = reload_rx.recv() => {
+                    if !handle_reload_event(result, write).await? {
+                        break;
                     }
-                    Err(broadcast::error::RecvError::Closed) => break,
                 }
-            }
-            n = reader.read_line(&mut line_buf) => {
-                let n = n?;
-                if n == 0 {
-                    break;
-                }
-                let req: Request = match serde_json::from_str(line_buf.trim()) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        codec::write_response(
-                            write,
-                            &Response::err(ErrorCode::InvalidRequest, e.to_string()),
-                        )
-                        .await?;
-                        line_buf.clear();
-                        continue;
+                result = history_rx.recv() => {
+                    if !handle_history_event(result, write).await? {
+                        break;
                     }
-                };
-                line_buf.clear();
-                if matches!(req.cmd, Cmd::Subscribe) {
-                    codec::write_response(
-                        write,
-                        &Response::err(ErrorCode::InvalidRequest, "already subscribed"),
-                    )
-                    .await?;
-                    continue;
                 }
-                handle_cmd(write, req, &ctx).await?;
+                n = reader.read_line(&mut line_buf) => {
+                    if !handle_subscribe_line(n?, &mut line_buf, reader, write, &ctx).await? {
+                        break;
+                    }
+                }
             }
         }
     }
+
+    #[cfg(not(feature = "history"))]
+    {
+        loop {
+            tokio::select! {
+                result = change_rx.recv() => {
+                    if !handle_change_event(result, write, state).await? {
+                        break;
+                    }
+                }
+                result = reload_rx.recv() => {
+                    if !handle_reload_event(result, write).await? {
+                        break;
+                    }
+                }
+                n = reader.read_line(&mut line_buf) => {
+                    if !handle_subscribe_line(n?, &mut line_buf, reader, write, &ctx).await? {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     Ok(())
+}
+
+async fn handle_change_event<W>(
+    result: Result<(), broadcast::error::RecvError>,
+    write: &mut W,
+    state: &HostState,
+) -> Result<bool, IpcError>
+where
+    W: AsyncWriteExt + Unpin,
+{
+    match result {
+        Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
+            let items = state.queue.snapshot().await;
+            codec::write_response(
+                write,
+                &Response::ok(OkPayload::Event {
+                    event: Event::Update { items },
+                }),
+            )
+            .await?;
+            Ok(true)
+        }
+        Err(broadcast::error::RecvError::Closed) => Ok(false),
+    }
+}
+
+async fn handle_reload_event<W>(
+    result: Result<(), broadcast::error::RecvError>,
+    write: &mut W,
+) -> Result<bool, IpcError>
+where
+    W: AsyncWriteExt + Unpin,
+{
+    match result {
+        Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
+            codec::write_response(
+                write,
+                &Response::ok(OkPayload::Event {
+                    event: Event::Reload,
+                }),
+            )
+            .await?;
+            Ok(true)
+        }
+        Err(broadcast::error::RecvError::Closed) => Ok(false),
+    }
+}
+
+#[cfg(feature = "history")]
+async fn handle_history_event<W>(
+    result: Result<(), broadcast::error::RecvError>,
+    write: &mut W,
+) -> Result<bool, IpcError>
+where
+    W: AsyncWriteExt + Unpin,
+{
+    match result {
+        Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
+            codec::write_response(
+                write,
+                &Response::ok(OkPayload::Event {
+                    event: Event::HistoryChanged,
+                }),
+            )
+            .await?;
+            Ok(true)
+        }
+        Err(broadcast::error::RecvError::Closed) => Ok(false),
+    }
+}
+
+async fn handle_subscribe_line<R, W>(
+    n: usize,
+    line_buf: &mut String,
+    _reader: &mut R,
+    write: &mut W,
+    ctx: &CmdContext<'_>,
+) -> Result<bool, IpcError>
+where
+    R: AsyncBufReadExt + Unpin,
+    W: AsyncWriteExt + Unpin,
+{
+    if n == 0 {
+        return Ok(false);
+    }
+    let req: Request = match serde_json::from_str(line_buf.trim()) {
+        Ok(r) => r,
+        Err(e) => {
+            codec::write_response(
+                write,
+                &Response::err(ErrorCode::InvalidRequest, e.to_string()),
+            )
+            .await?;
+            line_buf.clear();
+            return Ok(true);
+        }
+    };
+    line_buf.clear();
+    if matches!(req.cmd, Cmd::Subscribe) {
+        codec::write_response(
+            write,
+            &Response::err(ErrorCode::InvalidRequest, "already subscribed"),
+        )
+        .await?;
+        return Ok(true);
+    }
+    handle_cmd(write, req, ctx).await?;
+    Ok(true)
 }

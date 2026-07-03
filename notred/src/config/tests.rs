@@ -54,3 +54,28 @@ fn load_explicit_missing_path_errors() {
     let result = Config::load(Some(std::path::Path::new("/nonexistent/path/notred.toml")));
     assert!(result.is_err());
 }
+
+#[cfg(feature = "history")]
+#[test]
+fn history_defaults() {
+    let cfg = Config::default();
+    assert!(cfg.history.enabled);
+    assert!(cfg.history.flush);
+    assert_eq!(cfg.history.max_entries, 5);
+    assert!(cfg.history_path.ends_with("history.db"));
+}
+
+#[cfg(feature = "history")]
+#[test]
+fn history_section_parses() {
+    let toml = r#"
+[history]
+enabled = false
+flush = false
+max_entries = 0
+"#;
+    let cfg: Config = toml::from_str(toml).unwrap();
+    assert!(!cfg.history.enabled);
+    assert!(!cfg.history.flush);
+    assert_eq!(cfg.history.max_entries, 0);
+}

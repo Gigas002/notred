@@ -109,3 +109,39 @@ fn reload_event_roundtrip() {
         })
     );
 }
+
+#[test]
+fn list_history_roundtrip() {
+    let req_line = r#"{"v":1,"cmd":"list_history"}"#;
+    let req: Request = serde_json::from_str(req_line).unwrap();
+    assert_eq!(
+        req.cmd,
+        Cmd::ListHistory {
+            active_only: None,
+            app_id: None,
+            since: None,
+        }
+    );
+    let resp_line = r#"{"v":1,"type":"history","rows":[]}"#;
+    let resp: Response = serde_json::from_str(resp_line).unwrap();
+    assert_eq!(resp, Response::ok(OkPayload::History { rows: vec![] }));
+}
+
+#[test]
+fn remove_roundtrip() {
+    let req_line = r#"{"v":1,"cmd":"remove","id":9}"#;
+    let req: Request = serde_json::from_str(req_line).unwrap();
+    assert_eq!(req.cmd, Cmd::Remove { id: 9 });
+}
+
+#[test]
+fn history_changed_event_roundtrip() {
+    let resp_line = r#"{"v":1,"type":"event","event":{"kind":"history_changed"}}"#;
+    let resp: Response = serde_json::from_str(resp_line).unwrap();
+    assert_eq!(
+        resp,
+        Response::ok(OkPayload::Event {
+            event: Event::HistoryChanged,
+        })
+    );
+}

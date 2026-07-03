@@ -8,3 +8,9 @@
 # Env: NOTRED_ID, NOTRED_ACTION_KEY, NOTRED_APP_ID
 # [events]
 # on_action = ["sh", "-c", "echo activated $NOTRED_ID $NOTRED_ACTION_KEY"]
+
+# Session notification history (requires `history` Cargo feature).
+# [history]
+# enabled = true
+# flush = true       # wipe history.db on each notred start
+# max_entries = 5    # 0 = unlimited

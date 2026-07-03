@@ -520,16 +520,16 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 ### Phase 3 — History store (optional `history` feature)
 
-- [ ] Cargo feature **`history`** on `libnotred` / `notred` / `notredctl` (default **on** for release binaries).
-- [ ] `[history]` in `examples/config.toml` — `enabled` default **`true`**, `flush` **`true`**, `max_entries` **`5`** (§5.1).
-- [ ] `libnotred/src/history/` (feature-gated): schema + migrations, `rusqlite` (bundled), `$XDG_CACHE_HOME/notred/history.db`.
-- [ ] On startup: if `flush = true`, wipe DB before first `Notify`; if `flush = false`, skip (no timer).
-- [ ] On `Notify`: insert (unless disabled); enforce cap (delete oldest when `N > 0`).
-- [ ] States: `active` vs `closed` on timeout/app close; row retained until `remove` or cap eviction.
-- [ ] IPC: `list_history`, `remove`, `history_changed` event on `subscribe`.
-- [ ] `notredctl remove` + IPC `remove`: FDN close if active + delete DB row (subscribers use ctl, not DB).
-- [ ] Unit tests: cap=5 drops oldest; `enabled=false` no writes; `0` unbounded until remove; `flush=true` wipes on restart; `flush=false` keeps rows across restart; feature off → no `rusqlite` link.
-- [ ] `cargo deny` allow entry for SQLite/rusqlite as needed.
+- [x] Cargo feature **`history`** on `libnotred` / `notred` / `notredctl` (default **on** for release binaries).
+- [x] `[history]` in `examples/config.toml` — `enabled` default **`true`**, `flush` **`true`**, `max_entries` **`5`** (§5.1).
+- [x] `libnotred/src/history/` (feature-gated): schema + migrations, `rusqlite` (bundled), `$XDG_CACHE_HOME/notred/history.db`.
+- [x] On startup: if `flush = true`, wipe DB before first `Notify`; if `flush = false`, skip (no timer).
+- [x] On `Notify`: insert (unless disabled); enforce cap (delete oldest when `N > 0`).
+- [x] States: `active` vs `closed` on timeout/app close; row retained until `remove` or cap eviction.
+- [x] IPC: `list_history`, `remove`, `history_changed` event on `subscribe`.
+- [x] `notredctl remove` + IPC `remove`: FDN close if active + delete DB row (subscribers use ctl, not DB).
+- [x] Unit tests: cap=5 drops oldest; `enabled=false` no writes; `0` unbounded until remove; `flush=true` wipes on restart; `flush=false` keeps rows across restart; feature off → no `rusqlite` link.
+- [x] `cargo deny` allow entry for SQLite/rusqlite as needed.
 
 **Verify:** send 6× `notify-send` with `max_entries = 5` → DB has 5 rows, oldest gone; restart `notred` with `flush=true` → DB empty; with `flush=false` → rows retained; `notredctl list-history` / `remove`.
 
@@ -545,7 +545,7 @@ Workflows under `.github/workflows/` must cover the full workspace:
 ### Phase 5 — release v0.1.0
 
 - [ ] README: install, socket, IPC link, **not libnotify** disclaimer.
-- [ ] systemd user unit `notred.service`.
+- [ ] systemd user unit example in-repo (e.g. `examples/notred.service`); install target **`~/.config/systemd/user/notred.service`** — document `systemctl --user enable --now notred.service`.
 - [ ] CHANGELOG; tag; publish `libnotred` if crates.io ready.
 
 **Verify:** full §7 gates on release tag; dogfood `notify-send` + `notred-tui` on a real session.
