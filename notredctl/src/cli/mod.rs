@@ -1,9 +1,6 @@
-use std::io::{self, Write};
-use std::path::PathBuf;
-
 use clap::{Parser, Subcommand};
 
-use crate::error::CtlError;
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -36,55 +33,29 @@ pub enum Command {
     /// Dismiss all active notifications.
     #[command(name = "close-all")]
     CloseAll,
-}
-
-impl Cli {
-    pub async fn run(self) -> Result<(), CtlError> {
-        let socket_path = self.socket.map_or_else(default_socket_path, Ok)?;
-        let mut client = libnotred::ipc::Client::connect(&socket_path)
-            .await
-            .map_err(|_| CtlError::DaemonUnreachable(socket_path.display().to_string()))?;
-
-        match self.command {
-            Command::Ping => {
-                client.ping().await?;
-                println!("pong");
-            }
-            Command::List => {
-                let items = client.list().await?;
-                let json = serde_json::to_string_pretty(&items).map_err(CtlError::Json)?;
-                println!("{json}");
-            }
-            Command::Subscribe => {
-                client
-                    .subscribe(|line| {
-                        let mut out = io::stdout().lock();
-                        writeln!(out, "{line}").map_err(libnotred::IpcError::from)?;
-                        out.flush().map_err(libnotred::IpcError::from)?;
-                        Ok(())
-                    })
-                    .await?;
-            }
-            Command::Close { id } => {
-                client.dismiss(id).await.map_err(|e| match e {
-                    libnotred::IpcError::ServerError(msg) => CtlError::Server(msg),
-                    other => CtlError::Ipc(other),
-                })?;
-                println!("closed {id}");
-            }
-            Command::CloseAll => {
-                client.close_all().await?;
-                println!("closed all");
-            }
-        }
-        Ok(())
-    }
-}
-
-fn default_socket_path() -> Result<PathBuf, CtlError> {
-    let dir = std::env::var("XDG_RUNTIME_DIR")
-        .map_err(|_| CtlError::DaemonUnreachable("XDG_RUNTIME_DIR not set".to_owned()))?;
-    Ok(PathBuf::from(dir).join("notred.sock"))
+    /// Re-read `notred` config from disk.
+    Reload,
+    /// Hold new notifications until `unpause`.
+    Pause,
+    /// Resume surfacing held notifications.
+    Unpause,
+    /// Invoke a notification action (emits FDN `ActionInvoked`).
+    Activate {
+        /// Notification id.
+        id: u32,
+        /// Action key (defaults to `default` when omitted).
+        key: Option<String>,
+    },
+    /// Session history rows as JSON on stdout (`history` feature).
+    #[cfg(feature = "history")]
+    #[command(name = "list-history")]
+    ListHistory,
+    /// Remove from history; dismiss on FDN if still active (`history` feature).
+    #[cfg(feature = "history")]
+    Remove {
+        /// Notification id.
+        id: u32,
+    },
 }
 
 #[cfg(test)]

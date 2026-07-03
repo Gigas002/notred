@@ -7,20 +7,20 @@ use zbus::interface;
 use zbus::object_server::SignalEmitter;
 use zbus::zvariant::OwnedValue;
 
+use crate::host::state::HostState;
 use crate::model::{CloseReason, Notification};
-use crate::queue::Queue;
 use crate::wire::{IconRef, Urgency};
 
 pub const BUS_NAME: &str = "org.freedesktop.Notifications";
 pub const OBJECT_PATH: &str = "/org/freedesktop/Notifications";
 
 pub struct Notifications {
-    queue: Arc<Queue>,
+    state: Arc<HostState>,
 }
 
 impl Notifications {
-    pub fn new(queue: Arc<Queue>) -> Self {
-        Self { queue }
+    pub fn new(state: Arc<HostState>) -> Self {
+        Self { state }
     }
 }
 
@@ -61,7 +61,13 @@ impl Notifications {
             timestamp: now_unix(),
         };
 
-        let id = self.queue.push(notif).await;
+        let id = self.state.queue.push(notif.clone()).await;
+        #[cfg(feature = "history")]
+        {
+            let mut stored = notif;
+            stored.id = id;
+            self.state.record_notify(&stored).await;
+        }
         tracing::debug!(id, "FDN Notify");
         id
     }
@@ -72,7 +78,7 @@ impl Notifications {
         id: u32,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) {
-        if self.queue.close(id, CloseReason::ClosedByCall).await {
+        if self.state.queue.close(id, CloseReason::ClosedByCall).await {
             tracing::debug!(id, "FDN CloseNotification");
             if let Err(e) =
                 Self::notification_closed(&emitter, id, CloseReason::ClosedByCall.into()).await

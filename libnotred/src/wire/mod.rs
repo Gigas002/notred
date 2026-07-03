@@ -31,6 +31,31 @@ pub enum Cmd {
     },
     /// Dismiss all active notifications.
     CloseAll,
+    /// User chose an action; emits FDN `ActionInvoked` (key defaults to `"default"`).
+    Activate {
+        id: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        key: Option<String>,
+    },
+    /// Re-read daemon config from disk.
+    Reload,
+    /// Stop surfacing new notifications until `unpause`.
+    Pause,
+    /// Resume surfacing; flush held notifications to subscribers.
+    Unpause,
+    /// Session history snapshot (`history` feature).
+    ListHistory {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        active_only: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        app_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        since: Option<i64>,
+    },
+    /// Delete a history row; dismiss on FDN if still active (`history` feature).
+    Remove {
+        id: u32,
+    },
 }
 
 /// Daemon → consumer response. Tries `Err` variant first on deserialization.
@@ -77,6 +102,7 @@ pub enum OkPayload {
     Pong,
     Ok,
     Items { items: Vec<MinimalNotification> },
+    History { rows: Vec<HistoryRow> },
     Event { event: Event },
 }
 
@@ -110,6 +136,30 @@ pub struct MinimalNotification {
     pub timestamp: Option<i64>,
 }
 
+/// History log row for `list_history`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HistoryRow {
+    pub id: u32,
+    pub app_id: String,
+    pub summary: String,
+    pub body: String,
+    pub urgency: Urgency,
+    pub timeout_ms: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<IconRef>,
+    pub has_actions: bool,
+    pub action_keys: Vec<String>,
+    pub received_at: i64,
+    pub state: HistoryState,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum HistoryState {
+    Active,
+    Closed,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Urgency {
@@ -129,7 +179,13 @@ pub enum IconRef {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Event {
-    Update { items: Vec<MinimalNotification> },
+    Update {
+        items: Vec<MinimalNotification>,
+    },
+    /// Daemon config changed; subscribers should refresh cached policy.
+    Reload,
+    /// History database mutated (insert, remove, close).
+    HistoryChanged,
 }
 
 #[cfg(test)]

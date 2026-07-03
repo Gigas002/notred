@@ -40,3 +40,48 @@ fn close_all_subcommand_parses() {
     let cli = Cli::try_parse_from(["notredctl", "close-all"]).unwrap();
     assert!(matches!(cli.command, Command::CloseAll));
 }
+
+#[test]
+fn reload_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "reload"]).unwrap();
+    assert!(matches!(cli.command, Command::Reload));
+}
+
+#[test]
+fn pause_unpause_subcommands_parse() {
+    let pause = Cli::try_parse_from(["notredctl", "pause"]).unwrap();
+    assert!(matches!(pause.command, Command::Pause));
+    let unpause = Cli::try_parse_from(["notredctl", "unpause"]).unwrap();
+    assert!(matches!(unpause.command, Command::Unpause));
+}
+
+#[test]
+fn activate_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "activate", "7"]).unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Activate { id: 7, key: None }
+    ));
+    let with_key = Cli::try_parse_from(["notredctl", "activate", "7", "open"]).unwrap();
+    assert!(matches!(
+        with_key.command,
+        Command::Activate {
+            id: 7,
+            key: Some(k)
+        } if k == "open"
+    ));
+}
+
+#[cfg(feature = "history")]
+#[test]
+fn list_history_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "list-history"]).unwrap();
+    assert!(matches!(cli.command, Command::ListHistory));
+}
+
+#[cfg(feature = "history")]
+#[test]
+fn remove_subcommand_parses() {
+    let cli = Cli::try_parse_from(["notredctl", "remove", "3"]).unwrap();
+    assert!(matches!(cli.command, Command::Remove { id: 3 }));
+}

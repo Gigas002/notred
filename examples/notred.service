@@ -1,0 +1,25 @@
+# Example systemd user unit for notred.
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp examples/notred.service ~/.config/systemd/user/notred.service
+#   # Edit ExecStart if `notred` is not on your PATH.
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now notred.service
+#
+# Logs: journalctl --user -u notred.service -f
+
+[Unit]
+Description=Freedesktop notification daemon (notred)
+Documentation=https://github.com/Gigas002/notred
+After=graphical-session-pre.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=notred
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

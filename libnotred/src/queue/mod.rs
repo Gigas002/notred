@@ -18,6 +18,9 @@ pub struct ClosedEvent {
 struct QueueInner {
     next_id: u32,
     items: Vec<Notification>,
+    /// Notifications received while paused (not visible to subscribers).
+    held: Vec<Notification>,
+    paused: bool,
 }
 
 /// Thread-safe notification queue.
@@ -46,6 +49,8 @@ impl Queue {
             inner: RwLock::new(QueueInner {
                 next_id: 1,
                 items: vec![],
+                held: vec![],
+                paused: false,
             }),
             change_tx,
             close_tx,
@@ -63,38 +68,71 @@ impl Queue {
     }
 
     /// Push a notification, handling `replaces_id`. Returns the assigned id.
+    ///
+    /// When paused, notifications are held internally and not broadcast until
+    /// [`Queue::set_paused`](Self::set_paused)(`false`).
     pub async fn push(&self, mut notif: Notification) -> u32 {
         let mut inner = self.inner.write().await;
 
-        let id = if notif.replaces_id > 0 {
-            if let Some(pos) = inner.items.iter().position(|n| n.id == notif.replaces_id) {
-                let reused = notif.replaces_id;
-                notif.id = reused;
-                inner.items[pos] = notif;
-                reused
+        let id = assign_id(&mut inner, &mut notif);
+
+        let broadcast = if inner.paused {
+            let changes_visible =
+                notif.replaces_id > 0 && inner.items.iter().any(|n| n.id == notif.replaces_id);
+            if changes_visible {
+                insert_or_replace(&mut inner.items, notif);
             } else {
-                let id = alloc_id(&mut inner.next_id);
-                notif.id = id;
-                inner.items.push(notif);
-                id
+                insert_or_replace(&mut inner.held, notif);
             }
+            changes_visible
         } else {
-            let id = alloc_id(&mut inner.next_id);
-            notif.id = id;
-            inner.items.push(notif);
-            id
+            if notif.replaces_id > 0 {
+                remove_by_id(&mut inner.held, notif.replaces_id);
+            }
+            insert_or_replace(&mut inner.items, notif);
+            true
         };
 
         drop(inner);
-        let _ = self.change_tx.send(());
+        if broadcast {
+            let _ = self.change_tx.send(());
+        }
         id
+    }
+
+    /// Whether new notifications are held instead of surfaced to subscribers.
+    pub async fn is_paused(&self) -> bool {
+        self.inner.read().await.paused
+    }
+
+    /// Pause or unpause ingestion. Unpausing moves held notifications active and
+    /// broadcasts one change event.
+    pub async fn set_paused(&self, paused: bool) {
+        let mut inner = self.inner.write().await;
+        if inner.paused == paused {
+            return;
+        }
+        inner.paused = paused;
+        if !paused && !inner.held.is_empty() {
+            let held = std::mem::take(&mut inner.held);
+            inner.items.extend(held);
+            drop(inner);
+            let _ = self.change_tx.send(());
+        }
+    }
+
+    /// Lookup an active or held notification by id.
+    pub async fn get(&self, id: u32) -> Option<Notification> {
+        let inner = self.inner.read().await;
+        find_by_id(&inner.items, id)
+            .or_else(|| find_by_id(&inner.held, id))
+            .cloned()
     }
 
     /// Close one notification. Returns `false` if the id was not found.
     pub async fn close(&self, id: u32, reason: CloseReason) -> bool {
         let mut inner = self.inner.write().await;
-        if let Some(pos) = inner.items.iter().position(|n| n.id == id) {
-            inner.items.remove(pos);
+        if remove_by_id(&mut inner.items, id) || remove_by_id(&mut inner.held, id) {
             drop(inner);
             let _ = self.close_tx.send(ClosedEvent { id, reason });
             let _ = self.change_tx.send(());
@@ -107,8 +145,10 @@ impl Queue {
     /// Close all notifications. Returns the ids that were closed.
     pub async fn close_all(&self, reason: CloseReason) -> Vec<u32> {
         let mut inner = self.inner.write().await;
-        let ids: Vec<u32> = inner.items.iter().map(|n| n.id).collect();
+        let mut ids: Vec<u32> = inner.items.iter().map(|n| n.id).collect();
+        ids.extend(inner.held.iter().map(|n| n.id));
         inner.items.clear();
+        inner.held.clear();
         drop(inner);
         for &id in &ids {
             let _ = self.close_tx.send(ClosedEvent { id, reason });
@@ -142,6 +182,46 @@ fn alloc_id(next_id: &mut u32) -> u32 {
         *next_id = 1;
     }
     id
+}
+
+fn find_by_id(items: &[Notification], id: u32) -> Option<&Notification> {
+    items.iter().find(|n| n.id == id)
+}
+
+fn remove_by_id(items: &mut Vec<Notification>, id: u32) -> bool {
+    if let Some(pos) = items.iter().position(|n| n.id == id) {
+        items.remove(pos);
+        true
+    } else {
+        false
+    }
+}
+
+fn assign_id(inner: &mut QueueInner, notif: &mut Notification) -> u32 {
+    if notif.replaces_id > 0 {
+        let exists = inner.items.iter().any(|n| n.id == notif.replaces_id)
+            || inner.held.iter().any(|n| n.id == notif.replaces_id);
+        if exists {
+            notif.id = notif.replaces_id;
+            return notif.replaces_id;
+        }
+    }
+    let id = alloc_id(&mut inner.next_id);
+    notif.id = id;
+    id
+}
+
+fn insert_or_replace(items: &mut Vec<Notification>, notif: Notification) {
+    let replace_id = if notif.replaces_id > 0 {
+        notif.replaces_id
+    } else {
+        notif.id
+    };
+    if let Some(pos) = items.iter().position(|n| n.id == replace_id) {
+        items[pos] = notif;
+    } else {
+        items.push(notif);
+    }
 }
 
 #[cfg(test)]

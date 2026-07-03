@@ -1,4 +1,4 @@
-# notred IPC v1 (Phase 1)
+# notred IPC v1 (Phase 3)
 
 ## Transport
 
@@ -11,7 +11,7 @@
 - **Integrators:** use **`notredctl`** (`notredctl --help`, JSON on stdout) — see [`PLAN.md`](PLAN.md) §4.6.
 - **Implementors:** this document + `examples/ipc-examples/*.jsonl` golden fixtures.
 
-Phase 1 implements **`ping`**, **`subscribe`**, **`list`**, **`dismiss`**, and **`close_all`**. Further commands land in later phases ([`PLAN.md`](PLAN.md) §4.1).
+Phase 3 adds **`list_history`** and **`remove`** plus the **`history_changed`** subscribe event (`history` Cargo feature + `[history] enabled` at runtime).
 
 ---
 
@@ -21,14 +21,27 @@ Phase 1 implements **`ping`**, **`subscribe`**, **`list`**, **`dismiss`**, and *
 {"v":1,"cmd":"<command>"[, ...args]}
 ```
 
-| `cmd`                   | Extra fields    | Phase |
-| ----------------------- | --------------- | ----- |
-| `ping`                  | —               | 0     |
-| `subscribe`             | —               | 0     |
-| `list`                  | —               | 0     |
-| `dismiss`               | `"id": u32`     | 1     |
-| `close_all`             | —               | 1     |
-| `get`, `activate`, …    | TBD             | 2+    |
+| `cmd`           | Extra fields                                              | Phase |
+| --------------- | --------------------------------------------------------- | ----- |
+| `ping`          | —                                                         | 0     |
+| `subscribe`     | —                                                         | 0     |
+| `list`          | —                                                         | 0     |
+| `dismiss`       | `"id": u32`                                               | 1     |
+| `close_all`     | —                                                         | 1     |
+| `activate`      | `"id": u32`, `"key": str` (optional)                      | 2     |
+| `reload`        | —                                                         | 2     |
+| `pause`         | —                                                         | 2     |
+| `unpause`       | —                                                         | 2     |
+| `list_history`  | `active_only`, `app_id`, `since` (all optional)           | 3     |
+| `remove`        | `"id": u32`                                               | 3     |
+
+### `activate` action keys
+
+When `"key"` is omitted, the server uses **`"default"`**.
+
+### History availability
+
+`list_history` and `remove` return `NOT_IMPLEMENTED` when the daemon is built without the `history` feature or when `[history] enabled = false`.
 
 ---
 
@@ -36,90 +49,42 @@ Phase 1 implements **`ping`**, **`subscribe`**, **`list`**, **`dismiss`**, and *
 
 ### Success
 
-```
-{"v":1,"type":"<type>"[, ...fields]}
-```
+| `type`    | Fields                         | Reply to |
+| --------- | ------------------------------ | -------- |
+| `pong`    | —                              | `ping`   |
+| `ok`      | —                              | mutating commands |
+| `items`   | `"items": MinimalNotification[]` | `list` |
+| `history` | `"rows": HistoryRow[]`         | `list_history` |
+| `event`   | `"event": Event`               | `subscribe` stream |
 
-| `type`  | Fields                           | Reply to                     |
-| ------- | -------------------------------- | ---------------------------- |
-| `pong`  | —                                | `ping`                       |
-| `ok`    | —                                | `dismiss`, `close_all`       |
-| `items` | `"items": MinimalNotification[]` | `list`                       |
-| `event` | `"event": Event`                 | `subscribe` (stream)         |
+### `HistoryRow`
 
-### Error
+Same core fields as `MinimalNotification`, plus:
 
-```
-{"v":1,"error":{"code":"<CODE>","message":"..."}}
-```
+| Field         | Type                          |
+| ------------- | ----------------------------- |
+| `action_keys` | `string[]`                    |
+| `received_at` | i64 (Unix seconds)            |
+| `state`       | `"active"` \| `"closed"`      |
 
-| `code`            | Meaning                           |
-| ----------------- | --------------------------------- |
-| `NOT_FOUND`       | id / resource missing (Phase 1+)  |
-| `NOT_IMPLEMENTED` | command not available yet         |
-| `INVALID_REQUEST` | malformed JSON or protocol misuse |
+### `Event` kinds
 
----
-
-## Types
-
-### `MinimalNotification`
-
-```json
-{
-  "id": 1,
-  "app_id": "org.example.App",
-  "summary": "Title",
-  "body": "Body text",
-  "urgency": "normal",
-  "timeout_ms": 5000,
-  "icon": { "name": "dialog-information" },
-  "has_actions": false,
-  "timestamp": 1717430400
-}
-```
-
-| Field         | Type                                                   | Notes                                   |
-| ------------- | ------------------------------------------------------ | --------------------------------------- |
-| `id`          | u32                                                    | Server-assigned notification id         |
-| `app_id`      | string                                                 | Freedesktop application id              |
-| `summary`     | string                                                 | Short title                             |
-| `body`        | string                                                 | Body text (included in `update` for v0) |
-| `urgency`     | `"low"` \| `"normal"` \| `"critical"`                  |                                         |
-| `timeout_ms`  | i32                                                    | `-1` = persist until dismissed          |
-| `icon`        | `{ "name": string }` \| `{ "path": string }` \| absent |                                         |
-| `has_actions` | bool                                                   |                                         |
-| `timestamp`   | i64 \| absent                                          | Unix seconds, optional                  |
-
-### `Event`
-
-```json
-{"kind": "update", "items": [ ...MinimalNotification ]}
-```
-
-Phase 0: `subscribe` sends one initial `update` with `items: []` and keeps the connection open for further `event` lines (none until the queue exists in Phase 1).
-
----
-
-## `subscribe` stream
-
-```
-→ {"v":1,"cmd":"subscribe"}
-← {"v":1,"type":"event","event":{"kind":"update","items":[]}}
-   ... further event lines when the active set changes (Phase 1+)
-```
-
-While subscribed, the client may send additional requests on the same connection (`ping`, `list`). A second `subscribe` on the same connection returns `INVALID_REQUEST`.
+| `kind`            | When |
+| ----------------- | ---- |
+| `update`          | Active queue changed |
+| `reload`          | Config reloaded |
+| `history_changed` | History DB mutated |
 
 ---
 
 ## Golden examples
 
-| File                                    | Commands                         |
-| --------------------------------------- | -------------------------------- |
-| `examples/ipc-examples/ping.jsonl`      | `ping`                           |
-| `examples/ipc-examples/list.jsonl`      | `list`                           |
-| `examples/ipc-examples/subscribe.jsonl` | `subscribe` (initial event only) |
+| File                                         | Commands        |
+| -------------------------------------------- | --------------- |
+| `examples/ipc-examples/list_history.jsonl`   | `list_history`  |
+| `examples/ipc-examples/remove.jsonl`         | `remove`        |
+
+See also Phase 0–2 fixtures (`ping`, `list`, `subscribe`, `activate`, `reload`, `pause`).
 
 ---
 

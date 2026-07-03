@@ -135,7 +135,7 @@ Check `which notred` and crates.io names before first release; document pronunci
 | `server` (default for `notred` bin) | `dbus/`, `queue/`, `timeouts/`, `spawn/`, `ipc/server/`, `host/`, `wire/` | **`notred`** binary |
 | `history` | `history/`, `rusqlite`; IPC `list_history`, `remove`, `history_changed`; ctl subcmds | Full install, **notred-tui** |
 
-Default **`notred`** binary: `features = ["server", "history"]`. Minimal: `cargo build -p notred --no-default-features --features server` — no SQLite, no history RPCs (§5.1).
+Default **`notred`** binary: `default = []` (no optional features). Enable history: `cargo build -p notred --features history`. Minimal daemon: `cargo build -p notred` (no SQLite, no history RPCs) — §5.1.
 
 **`notredctl`** is the **only IPC client** meant for external use: it connects to `notred.sock` and maps every subscriber-facing action to subcommands. Implementation may use `libnotred` (`wire/` + small client module) **inside this workspace** — that code is **not** a public integration API.
 
@@ -357,7 +357,7 @@ In `examples/config.toml` (schema source of truth):
 ```toml
 [history]
 # Requires notred built with Cargo feature "history". Ignored if feature off.
-enabled = true
+enabled = false
 
 # Wipe history.db when the notred process starts (before accepting Notify).
 #   true  = flush on each daemon start (default)
@@ -372,7 +372,7 @@ max_entries = 5
 
 | Key | Behavior |
 | --- | -------- |
-| **`enabled`** | **`true`** (default when `history` feature compiled): SQLite + history IPC. **`false`**: no DB writes; `notredctl list-history` / `remove` error or no-op. Ignored if binary lacks `history` feature. |
+| **`enabled`** | **`false`** (default when `history` feature compiled): set **`true`** to enable SQLite + history IPC. When **`false`**: no DB writes; `notredctl list-history` / `remove` error or no-op. Ignored if binary lacks `history` feature. |
 | **`flush`** | When **`enabled = true`**: **`true`** (default) wipes `history.db` on each **notred** start; **`false`** keeps file. **No timer** — startup only. |
 | **`max_entries`** | When **`enabled = true`**: **`0`** = unlimited until `remove` or flush on restart; **`N > 0`** (default **5**) = ring buffer (drop oldest after insert). |
 
@@ -512,41 +512,43 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 ### Phase 2 — IPC RPC: dismiss, activate, reload, pause
 
-- [ ] Wire `dismiss` / `activate` → FDN signals + `[events]` shells.
-- [ ] `reload`, `pause` / `unpause`.
-- [ ] Document action-key selection (`default` preferred).
+- [x] Wire `dismiss` / `activate` → FDN signals + `[events]` shells.
+- [x] `reload`, `pause` / `unpause`.
+- [x] Document action-key selection (`default` preferred).
 
 **Verify:** `dbus-monitor` on `ActionInvoked`; wayshot-style clients.
 
 ### Phase 3 — History store (optional `history` feature)
 
-- [ ] Cargo feature **`history`** on `libnotred` / `notred` / `notredctl` (default **on** for release binaries).
-- [ ] `[history]` in `examples/config.toml` — `enabled` default **`true`**, `flush` **`true`**, `max_entries` **`5`** (§5.1).
-- [ ] `libnotred/src/history/` (feature-gated): schema + migrations, `rusqlite` (bundled), `$XDG_CACHE_HOME/notred/history.db`.
-- [ ] On startup: if `flush = true`, wipe DB before first `Notify`; if `flush = false`, skip (no timer).
-- [ ] On `Notify`: insert (unless disabled); enforce cap (delete oldest when `N > 0`).
-- [ ] States: `active` vs `closed` on timeout/app close; row retained until `remove` or cap eviction.
-- [ ] IPC: `list_history`, `remove`, `history_changed` event on `subscribe`.
-- [ ] `notredctl remove` + IPC `remove`: FDN close if active + delete DB row (subscribers use ctl, not DB).
-- [ ] Unit tests: cap=5 drops oldest; `enabled=false` no writes; `0` unbounded until remove; `flush=true` wipes on restart; `flush=false` keeps rows across restart; feature off → no `rusqlite` link.
-- [ ] `cargo deny` allow entry for SQLite/rusqlite as needed.
+- [x] Cargo feature **`history`** on `libnotred` / `notred` / `notredctl` (default **off**; opt in with `--features history`).
+- [x] `[history]` in `examples/config.toml` — `enabled` default **`false`**, `flush` **`true`**, `max_entries` **`5`** (§5.1).
+- [x] `libnotred/src/history/` (feature-gated): schema + migrations, `rusqlite` (bundled), `$XDG_CACHE_HOME/notred/history.db`.
+- [x] On startup: if `flush = true`, wipe DB before first `Notify`; if `flush = false`, skip (no timer).
+- [x] On `Notify`: insert (unless disabled); enforce cap (delete oldest when `N > 0`).
+- [x] States: `active` vs `closed` on timeout/app close; row retained until `remove` or cap eviction.
+- [x] IPC: `list_history`, `remove`, `history_changed` event on `subscribe`.
+- [x] `notredctl remove` + IPC `remove`: FDN close if active + delete DB row (subscribers use ctl, not DB).
+- [x] Unit tests: cap=5 drops oldest; `enabled=false` no writes; `0` unbounded until remove; `flush=true` wipes on restart; `flush=false` keeps rows across restart; feature off → no `rusqlite` link.
+- [x] `cargo deny` allow entry for SQLite/rusqlite as needed.
 
 **Verify:** send 6× `notify-send` with `max_entries = 5` → DB has 5 rows, oldest gone; restart `notred` with `flush=true` → DB empty; with `flush=false` → rows retained; `notredctl list-history` / `remove`.
 
 ### Phase 4 — `notred-tui` manager (requires `history`)
 
-- [ ] Crate / binary depends on `notred`+`notredctl` with **`history`** feature; document if history disabled at runtime.
-- [ ] Child process or periodic spawn: **`notredctl subscribe`**, parse JSON lines from stdout.
-- [ ] ratatui: `notredctl list-history` for paint; **`d`** → `notredctl remove <id>`; activate via `notredctl activate` (arrows-first keys).
-- [ ] Dogfood: receive notifications while TUI **closed**, then open TUI and see full retained set.
+- [x] Crate / binary depends on `notred`+`notredctl` with **`history`** feature; document if history disabled at runtime.
+- [x] Child process or periodic spawn: **`notredctl subscribe`**, parse JSON lines from stdout.
+- [x] ratatui: `notredctl list-history` for paint; **`d`** → `notredctl remove <id>`; activate via `notredctl activate` (arrows-first keys).
+- [x] Dogfood: receive notifications while TUI **closed**, then open TUI and see full retained set.
 
 **Verify:** full manager workflow with **only** `notred` + `notred-tui`; history survives TUI not running within same notred session.
 
 ### Phase 5 — release v0.1.0
 
-- [ ] README: install, socket, IPC link, **not libnotify** disclaimer.
-- [ ] systemd user unit `notred.service`.
-- [ ] CHANGELOG; tag; publish `libnotred` if crates.io ready.
+- [x] README: install, socket, IPC link, **not libnotify** disclaimer.
+- [x] systemd user unit example in-repo (`examples/notred.service`); install target **`~/.config/systemd/user/notred.service`** — document `systemctl --user enable --now notred.service`.
+- [x] CHANGELOG ([`CHANGELOG.md`](CHANGELOG.md)).
+- [ ] Tag `v0.1.0` and push (triggers [Deploy](.github/workflows/deploy.yml) — see README **Releasing**).
+- [ ] Publish `libnotred` to crates.io (`CARGO_REGISTRY_TOKEN` secret; automated on tag push when configured).
 
 **Verify:** full §7 gates on release tag; dogfood `notify-send` + `notred-tui` on a real session.
 
@@ -556,11 +558,11 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 - [ ] `notify-send` works with **only** `notred` running (no subscriber) — proves FDN.
 - [ ] `notredctl reload|pause|close-all` works via IPC.
-- [ ] **History (optional feature):** default build includes `history`; minimal build without; `[history] enabled`, `flush`, `max_entries` documented.
+- [x] **History (optional feature):** opt-in Cargo feature `history`; `[history] enabled` defaults **off**; `flush`, `max_entries` documented (README + `examples/config.toml`).
 - [ ] `notred-tui`: browse session history when history enabled.
 - [ ] **No** Wayland/Cairo in notred workspace.
 - [ ] IPC v1 documented + golden tests.
-- [ ] README states **not libnotify**.
+- [x] README states **not libnotify**.
 - [ ] All §7 quality gates pass on `main` and release tags.
 
 ---

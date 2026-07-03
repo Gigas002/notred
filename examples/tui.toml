@@ -1,0 +1,5 @@
+# notred-tui config (place at $XDG_CONFIG_HOME/notred/tui.toml)
+# All fields are optional.
+
+# ctl = "/usr/local/bin/notredctl"
+# socket = "/run/user/1000/notred.sock"

@@ -14,3 +14,6 @@ pub enum IpcError {
     #[error("server error: {0}")]
     ServerError(String),
 }
+
+#[cfg(test)]
+mod tests;

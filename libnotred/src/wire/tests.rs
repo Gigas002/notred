@@ -72,3 +72,70 @@ fn ok_payload_roundtrip() {
     let json = serde_json::to_string(&Response::ok(OkPayload::Ok)).unwrap();
     assert_eq!(json, resp_line);
 }
+
+#[test]
+fn activate_roundtrip() {
+    let req_line = r#"{"v":1,"cmd":"activate","id":3}"#;
+    let req: Request = serde_json::from_str(req_line).unwrap();
+    assert_eq!(req.cmd, Cmd::Activate { id: 3, key: None });
+}
+
+#[test]
+fn reload_pause_unpause_roundtrip() {
+    for (line, cmd) in [
+        (r#"{"v":1,"cmd":"reload"}"#, Cmd::Reload),
+        (r#"{"v":1,"cmd":"pause"}"#, Cmd::Pause),
+        (r#"{"v":1,"cmd":"unpause"}"#, Cmd::Unpause),
+    ] {
+        let req: Request = serde_json::from_str(line).unwrap();
+        assert_eq!(req.cmd, cmd);
+    }
+}
+
+#[test]
+fn reload_event_roundtrip() {
+    let resp_line = r#"{"v":1,"type":"event","event":{"kind":"reload"}}"#;
+    let resp: Response = serde_json::from_str(resp_line).unwrap();
+    assert_eq!(
+        resp,
+        Response::ok(OkPayload::Event {
+            event: Event::Reload,
+        })
+    );
+}
+
+#[test]
+fn list_history_roundtrip() {
+    let req_line = r#"{"v":1,"cmd":"list_history"}"#;
+    let req: Request = serde_json::from_str(req_line).unwrap();
+    assert_eq!(
+        req.cmd,
+        Cmd::ListHistory {
+            active_only: None,
+            app_id: None,
+            since: None,
+        }
+    );
+    let resp_line = r#"{"v":1,"type":"history","rows":[]}"#;
+    let resp: Response = serde_json::from_str(resp_line).unwrap();
+    assert_eq!(resp, Response::ok(OkPayload::History { rows: vec![] }));
+}
+
+#[test]
+fn remove_roundtrip() {
+    let req_line = r#"{"v":1,"cmd":"remove","id":9}"#;
+    let req: Request = serde_json::from_str(req_line).unwrap();
+    assert_eq!(req.cmd, Cmd::Remove { id: 9 });
+}
+
+#[test]
+fn history_changed_event_roundtrip() {
+    let resp_line = r#"{"v":1,"type":"event","event":{"kind":"history_changed"}}"#;
+    let resp: Response = serde_json::from_str(resp_line).unwrap();
+    assert_eq!(
+        resp,
+        Response::ok(OkPayload::Event {
+            event: Event::HistoryChanged,
+        })
+    );
+}

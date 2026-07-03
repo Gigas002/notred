@@ -86,6 +86,35 @@ async fn close_all_clears_queue() {
 }
 
 #[tokio::test]
+async fn pause_holds_new_notifications() {
+    let q = Queue::new();
+    q.set_paused(true).await;
+    q.push(notif("a", "held")).await;
+    assert_eq!(q.len().await, 0);
+    assert!(q.is_paused().await);
+}
+
+#[tokio::test]
+async fn unpause_flushes_held_to_active() {
+    let q = Queue::new();
+    q.set_paused(true).await;
+    q.push(notif("a", "held")).await;
+    q.set_paused(false).await;
+    assert_eq!(q.len().await, 1);
+}
+
+#[tokio::test]
+async fn get_finds_active_and_held() {
+    let q = Queue::new();
+    let id = q.push(notif("a", "active")).await;
+    assert!(q.get(id).await.is_some());
+
+    q.set_paused(true).await;
+    let held_id = q.push(notif("a", "held")).await;
+    assert!(q.get(held_id).await.is_some());
+}
+
+#[tokio::test]
 async fn change_broadcast_fires_on_push_and_close() {
     let q = Queue::new();
     let mut rx = q.subscribe_changes();

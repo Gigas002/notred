@@ -3,3 +3,14 @@
 
 # socket_path = "/run/user/1000/notred.sock"  # default: $XDG_RUNTIME_DIR/notred.sock
 # log_filter  = "warn"                        # overridden by RUST_LOG
+
+# Optional shell hook on action activation (Phase 2).
+# Env: NOTRED_ID, NOTRED_ACTION_KEY, NOTRED_APP_ID
+# [events]
+# on_action = ["sh", "-c", "echo activated $NOTRED_ID $NOTRED_ACTION_KEY"]
+
+# Session notification history (requires `history` Cargo feature).
+# [history]
+# enabled = false   # default when feature is enabled
+# flush = true       # wipe history.db on each notred start
+# max_entries = 5    # 0 = unlimited

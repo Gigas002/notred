@@ -23,3 +23,6 @@ pub enum NotredBinError {
     #[error("daemon not reachable at {0}")]
     DaemonUnreachable(String),
 }
+
+#[cfg(test)]
+mod tests;
