@@ -63,7 +63,54 @@ impl Client {
         }
     }
 
-    /// Block and invoke `on_line` for each NDJSON response line until EOF.
+    /// Activate a notification action (key defaults to `"default"` on the server).
+    pub async fn activate(&mut self, id: u32, key: Option<&str>) -> Result<(), IpcError> {
+        codec::write_request(
+            &mut self.write,
+            &Request::new(Cmd::Activate {
+                id,
+                key: key.map(str::to_owned),
+            }),
+        )
+        .await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(_)) => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("activate")),
+        }
+    }
+
+    /// Re-read daemon config from disk.
+    pub async fn reload(&mut self) -> Result<(), IpcError> {
+        codec::write_request(&mut self.write, &Request::new(Cmd::Reload)).await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(_)) => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("reload")),
+        }
+    }
+
+    /// Hold new notifications until [`Self::unpause`].
+    pub async fn pause(&mut self) -> Result<(), IpcError> {
+        codec::write_request(&mut self.write, &Request::new(Cmd::Pause)).await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(_)) => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("pause")),
+        }
+    }
+
+    /// Resume surfacing held notifications.
+    pub async fn unpause(&mut self) -> Result<(), IpcError> {
+        codec::write_request(&mut self.write, &Request::new(Cmd::Unpause)).await?;
+        match codec::read_response(&mut self.reader).await? {
+            Some(Response::Ok(_)) => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("unpause")),
+        }
+    }
+
+    /// Invoke `on_line` for each NDJSON response line until EOF.
     pub async fn subscribe<F>(&mut self, mut on_line: F) -> Result<(), IpcError>
     where
         F: FnMut(&str) -> Result<(), IpcError>,

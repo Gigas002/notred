@@ -31,6 +31,18 @@ pub enum Cmd {
     },
     /// Dismiss all active notifications.
     CloseAll,
+    /// User chose an action; emits FDN `ActionInvoked` (key defaults to `"default"`).
+    Activate {
+        id: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        key: Option<String>,
+    },
+    /// Re-read daemon config from disk.
+    Reload,
+    /// Stop surfacing new notifications until `unpause`.
+    Pause,
+    /// Resume surfacing; flush held notifications to subscribers.
+    Unpause,
 }
 
 /// Daemon → consumer response. Tries `Err` variant first on deserialization.
@@ -130,6 +142,8 @@ pub enum IconRef {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Event {
     Update { items: Vec<MinimalNotification> },
+    /// Daemon config changed; subscribers should refresh cached policy.
+    Reload,
 }
 
 #[cfg(test)]

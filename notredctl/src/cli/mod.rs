@@ -1,7 +1,7 @@
+use clap::{Parser, Subcommand};
+
 use std::io::{self, Write};
 use std::path::PathBuf;
-
-use clap::{Parser, Subcommand};
 
 use crate::error::CtlError;
 
@@ -36,6 +36,19 @@ pub enum Command {
     /// Dismiss all active notifications.
     #[command(name = "close-all")]
     CloseAll,
+    /// Re-read `notred` config from disk.
+    Reload,
+    /// Hold new notifications until `unpause`.
+    Pause,
+    /// Resume surfacing held notifications.
+    Unpause,
+    /// Invoke a notification action (emits FDN `ActionInvoked`).
+    Activate {
+        /// Notification id.
+        id: u32,
+        /// Action key (defaults to `default` when omitted).
+        key: Option<String>,
+    },
 }
 
 impl Cli {
@@ -76,8 +89,34 @@ impl Cli {
                 client.close_all().await?;
                 println!("closed all");
             }
+            Command::Reload => {
+                client.reload().await.map_err(map_server_err)?;
+                println!("reloaded");
+            }
+            Command::Pause => {
+                client.pause().await.map_err(map_server_err)?;
+                println!("paused");
+            }
+            Command::Unpause => {
+                client.unpause().await.map_err(map_server_err)?;
+                println!("unpaused");
+            }
+            Command::Activate { id, key } => {
+                client
+                    .activate(id, key.as_deref())
+                    .await
+                    .map_err(map_server_err)?;
+                println!("activated {id}");
+            }
         }
         Ok(())
+    }
+}
+
+fn map_server_err(e: libnotred::IpcError) -> CtlError {
+    match e {
+        libnotred::IpcError::ServerError(msg) => CtlError::Server(msg),
+        other => CtlError::Ipc(other),
     }
 }
 

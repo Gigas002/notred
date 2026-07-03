@@ -13,9 +13,14 @@ pub mod host;
 pub mod model;
 #[cfg(feature = "server")]
 pub mod queue;
+#[cfg(feature = "server")]
+pub mod spawn;
 
 #[cfg(feature = "ipc")]
 pub use ipc::IpcError;
+
+#[cfg(feature = "server")]
+pub use host::state::RuntimeConfig;
 
 /// Library version (matches workspace package version at release time).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

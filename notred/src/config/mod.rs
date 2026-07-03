@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use libnotred::RuntimeConfig;
 use serde::Deserialize;
 
 use crate::error::NotredBinError;
@@ -15,6 +16,20 @@ pub struct Config {
     /// Tracing filter string (overridden by `RUST_LOG`).
     #[serde(default = "default_log_filter")]
     pub log_filter: String,
+
+    #[serde(default)]
+    pub events: EventsConfig,
+
+    /// Set when loading from an explicit `--config` path (used for reload).
+    #[serde(skip)]
+    pub explicit_config: Option<PathBuf>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct EventsConfig {
+    /// Optional argv invoked on action activation (`NOTRED_*` env vars set).
+    #[serde(default)]
+    pub on_action: Option<Vec<String>>,
 }
 
 fn default_socket_path() -> PathBuf {
@@ -30,6 +45,8 @@ impl Default for Config {
         Self {
             socket_path: default_socket_path(),
             log_filter: default_log_filter(),
+            events: EventsConfig::default(),
+            explicit_config: None,
         }
     }
 }
@@ -41,22 +58,41 @@ impl Config {
     /// - XDG path exists → parse it; error if unparsable.
     /// - Nothing found → silent defaults.
     pub fn load(explicit: Option<&Path>) -> Result<Self, NotredBinError> {
-        if let Some(path) = explicit {
+        let cfg = if let Some(path) = explicit {
             let text = std::fs::read_to_string(path)
                 .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())))?;
-            return toml::from_str(&text)
-                .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())));
-        }
+            let mut cfg: Config = toml::from_str(&text)
+                .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())))?;
+            cfg.explicit_config = Some(path.to_path_buf());
+            cfg
+        } else {
+            let xdg = Self::xdg_path();
+            if xdg.exists() {
+                let text = std::fs::read_to_string(&xdg)
+                    .map_err(|e| NotredBinError::Config(format!("{}: {e}", xdg.display())))?;
+                let mut cfg: Config = toml::from_str(&text)
+                    .map_err(|e| NotredBinError::Config(format!("{}: {e}", xdg.display())))?;
+                cfg.explicit_config = Some(xdg);
+                cfg
+            } else {
+                Config::default()
+            }
+        };
+        Ok(cfg)
+    }
 
-        let xdg = Self::xdg_path();
-        if xdg.exists() {
-            let text = std::fs::read_to_string(&xdg)
-                .map_err(|e| NotredBinError::Config(format!("{}: {e}", xdg.display())))?;
-            return toml::from_str(&text)
-                .map_err(|e| NotredBinError::Config(format!("{}: {e}", xdg.display())));
+    pub fn runtime(&self) -> RuntimeConfig {
+        RuntimeConfig {
+            on_action: self.events.on_action.clone(),
         }
+    }
 
-        Ok(Self::default())
+    /// Config file path used for `reload`, if any.
+    pub fn resolved_path(explicit: Option<&Path>) -> Option<PathBuf> {
+        explicit.map(Path::to_path_buf).or_else(|| {
+            let xdg = Self::xdg_path();
+            xdg.exists().then_some(xdg)
+        })
     }
 
     /// `$XDG_CONFIG_HOME/notred/notred.toml` (falls back to `~/.config/…`).

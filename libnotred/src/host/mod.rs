@@ -7,15 +7,22 @@ use tokio::sync::broadcast;
 use zbus::connection;
 
 use crate::dbus::notifications::{self, Notifications};
+use crate::host::state::{ActivateEvent, HostState, RuntimeConfig};
 use crate::ipc::IpcError;
 use crate::ipc::server::Server;
 use crate::model::CloseReason;
-use crate::queue::{ClosedEvent, Queue};
+use crate::queue::Queue;
+use crate::spawn::spawn_on_action;
+
+pub mod state;
 
 /// Configuration passed from the `notred` binary into the host.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HostConfig {
     pub socket_path: PathBuf,
+    pub runtime: RuntimeConfig,
+    /// Reload runtime policy from disk (returns updated [`RuntimeConfig`]).
+    pub reload: Option<Arc<dyn Fn() -> Result<RuntimeConfig, String> + Send + Sync>>,
 }
 
 /// Errors from the host runtime.
@@ -56,14 +63,16 @@ impl NotredHost {
     /// Run the host until an error or signal.
     pub async fn run(&self) -> Result<(), HostError> {
         let queue = Arc::new(Queue::new());
+        let state = HostState::new(self.config.runtime.clone(), Arc::clone(&queue));
 
         let close_rx = queue.subscribe_closes();
+        let activate_rx = state.subscribe_activates();
 
         let conn = connection::Builder::session()?
             .name(notifications::BUS_NAME)?
             .serve_at(
                 notifications::OBJECT_PATH,
-                Notifications::new(Arc::clone(&queue)),
+                Notifications::new(Arc::clone(&state)),
             )?
             .build()
             .await?;
@@ -71,11 +80,16 @@ impl NotredHost {
         tracing::info!("D-Bus name acquired: {}", notifications::BUS_NAME);
 
         let signal_conn = conn.clone();
+        let signal_state = Arc::clone(&state);
         let signal_task = tokio::spawn(async move {
-            emit_signals_task(signal_conn, close_rx).await;
+            emit_signals_task(signal_conn, close_rx, activate_rx, signal_state).await;
         });
 
-        let server = Server::new(&self.config.socket_path, Arc::clone(&queue));
+        let server = Server::new(
+            &self.config.socket_path,
+            state,
+            self.config.reload.clone(),
+        );
 
         tokio::select! {
             result = server.run() => {
@@ -88,8 +102,13 @@ impl NotredHost {
     }
 }
 
-/// Background task: emit `NotificationClosed` D-Bus signals from the close channel.
-async fn emit_signals_task(conn: zbus::Connection, mut rx: broadcast::Receiver<ClosedEvent>) {
+/// Background task: emit D-Bus signals and run `[events]` hooks.
+async fn emit_signals_task(
+    conn: zbus::Connection,
+    mut close_rx: broadcast::Receiver<crate::queue::ClosedEvent>,
+    mut activate_rx: broadcast::Receiver<ActivateEvent>,
+    state: Arc<HostState>,
+) {
     let emitter = match zbus::object_server::SignalEmitter::new(&conn, notifications::OBJECT_PATH) {
         Ok(e) => e,
         Err(e) => {
@@ -99,28 +118,50 @@ async fn emit_signals_task(conn: zbus::Connection, mut rx: broadcast::Receiver<C
     };
 
     loop {
-        let ev = match rx.recv().await {
-            Ok(ev) => ev,
-            Err(broadcast::error::RecvError::Lagged(n)) => {
-                tracing::warn!(
-                    n,
-                    "signal task lagged; some NotificationClosed signals may be lost"
-                );
-                continue;
+        tokio::select! {
+            close = close_rx.recv() => {
+                match close {
+                    Ok(ev) => {
+                        if ev.reason == CloseReason::ClosedByCall {
+                            continue;
+                        }
+                        if let Err(e) = Notifications::notification_closed(
+                            &emitter,
+                            ev.id,
+                            u32::from(ev.reason),
+                        )
+                        .await
+                        {
+                            tracing::warn!(%e, id = ev.id, "failed to emit NotificationClosed");
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!(n, "close signal task lagged");
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
             }
-            Err(broadcast::error::RecvError::Closed) => break,
-        };
-
-        // FDN CloseNotification already emits its own signal inline (to avoid
-        // duplicate emission here). Skip ClosedByCall to avoid double-emit.
-        if ev.reason == CloseReason::ClosedByCall {
-            continue;
-        }
-
-        if let Err(e) =
-            Notifications::notification_closed(&emitter, ev.id, u32::from(ev.reason)).await
-        {
-            tracing::warn!(%e, id = ev.id, "failed to emit NotificationClosed signal");
+            activate = activate_rx.recv() => {
+                match activate {
+                    Ok(ev) => {
+                        let config = state.runtime_config().await;
+                        spawn_on_action(&config, &ev);
+                        if let Err(e) = Notifications::action_invoked(
+                            &emitter,
+                            ev.id,
+                            &ev.key,
+                        )
+                        .await
+                        {
+                            tracing::warn!(%e, id = ev.id, "failed to emit ActionInvoked");
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!(n, "activate signal task lagged");
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
         }
     }
 }

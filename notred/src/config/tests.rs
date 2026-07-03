@@ -32,6 +32,24 @@ fn load_returns_defaults_when_no_file() {
 }
 
 #[test]
+fn events_on_action_parses() {
+    let toml = r#"
+[events]
+on_action = ["echo", "hi"]
+"#;
+    let cfg: Config = toml::from_str(toml).unwrap();
+    assert_eq!(cfg.events.on_action, Some(vec!["echo".into(), "hi".into()]));
+}
+
+#[test]
+fn runtime_config_maps_events() {
+    let mut cfg = Config::default();
+    cfg.events.on_action = Some(vec!["true".into()]);
+    let rt = cfg.runtime();
+    assert_eq!(rt.on_action, Some(vec!["true".into()]));
+}
+
+#[test]
 fn load_explicit_missing_path_errors() {
     let result = Config::load(Some(std::path::Path::new("/nonexistent/path/notred.toml")));
     assert!(result.is_err());

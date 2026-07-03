@@ -512,9 +512,9 @@ Workflows under `.github/workflows/` must cover the full workspace:
 
 ### Phase 2 — IPC RPC: dismiss, activate, reload, pause
 
-- [ ] Wire `dismiss` / `activate` → FDN signals + `[events]` shells.
-- [ ] `reload`, `pause` / `unpause`.
-- [ ] Document action-key selection (`default` preferred).
+- [x] Wire `dismiss` / `activate` → FDN signals + `[events]` shells.
+- [x] `reload`, `pause` / `unpause`.
+- [x] Document action-key selection (`default` preferred).
 
 **Verify:** `dbus-monitor` on `ActionInvoked`; wayshot-style clients.
 
