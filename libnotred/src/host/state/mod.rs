@@ -158,6 +158,8 @@ impl HostState {
             .await;
         let hooks = cfg.events.resolve(&notif.app_id, notif.urgency);
         crate::spawn::spawn_on_notify(&hooks, &notif);
+        #[cfg(feature = "history")]
+        self.record_notify(&notif).await;
         id
     }
 
