@@ -313,6 +313,46 @@ where
     Ok(true)
 }
 
+/// Tracks last emitted event to suppress consecutive duplicates.
+struct SubscribeDedup {
+    last_items: Vec<crate::wire::MinimalNotification>,
+    #[cfg_attr(not(feature = "history"), allow(dead_code))]
+    last_was_history_changed: bool,
+}
+
+impl SubscribeDedup {
+    fn new(initial_items: Vec<crate::wire::MinimalNotification>) -> Self {
+        Self {
+            last_items: initial_items,
+            last_was_history_changed: false,
+        }
+    }
+
+    /// Returns `true` if the snapshot differs from the last sent one.
+    fn should_send_update(&mut self, items: &[crate::wire::MinimalNotification]) -> bool {
+        if self.last_items == items {
+            return false;
+        }
+        self.last_items = items.to_vec();
+        self.last_was_history_changed = false;
+        true
+    }
+
+    /// Returns `true` if we should emit a `history_changed` (suppresses consecutive).
+    #[cfg(feature = "history")]
+    fn should_send_history_changed(&mut self) -> bool {
+        if self.last_was_history_changed {
+            return false;
+        }
+        self.last_was_history_changed = true;
+        true
+    }
+
+    fn mark_other_event(&mut self) {
+        self.last_was_history_changed = false;
+    }
+}
+
 async fn run_subscribe<R, W>(
     reader: &mut R,
     write: &mut W,
@@ -330,11 +370,14 @@ where
     codec::write_response(
         write,
         &Response::ok(OkPayload::Event {
-            event: Event::Update { items },
+            event: Event::Update {
+                items: items.clone(),
+            },
         }),
     )
     .await?;
 
+    let mut dedup = SubscribeDedup::new(items);
     let mut line_buf = String::new();
     let ctx = CmdContext { state, reload };
 
@@ -344,17 +387,17 @@ where
         loop {
             tokio::select! {
                 result = change_rx.recv() => {
-                    if !handle_change_event(result, write, state).await? {
+                    if !handle_change_event(result, write, state, &mut change_rx, &mut dedup).await? {
                         break;
                     }
                 }
                 result = reload_rx.recv() => {
-                    if !handle_reload_event(result, write).await? {
+                    if !handle_reload_event(result, write, &mut dedup).await? {
                         break;
                     }
                 }
                 result = history_rx.recv() => {
-                    if !handle_history_event(result, write).await? {
+                    if !handle_history_event(result, write, &mut history_rx, &mut dedup).await? {
                         break;
                     }
                 }
@@ -372,12 +415,12 @@ where
         loop {
             tokio::select! {
                 result = change_rx.recv() => {
-                    if !handle_change_event(result, write, state).await? {
+                    if !handle_change_event(result, write, state, &mut change_rx, &mut dedup).await? {
                         break;
                     }
                 }
                 result = reload_rx.recv() => {
-                    if !handle_reload_event(result, write).await? {
+                    if !handle_reload_event(result, write, &mut dedup).await? {
                         break;
                     }
                 }
@@ -393,24 +436,35 @@ where
     Ok(())
 }
 
+/// Drain all pending signals from a broadcast receiver so rapid-fire events coalesce.
+fn drain_broadcast(rx: &mut broadcast::Receiver<()>) {
+    while let Ok(()) | Err(broadcast::error::TryRecvError::Lagged(_)) = rx.try_recv() {}
+}
+
 async fn handle_change_event<W>(
     result: Result<(), broadcast::error::RecvError>,
     write: &mut W,
     state: &HostState,
+    change_rx: &mut broadcast::Receiver<()>,
+    dedup: &mut SubscribeDedup,
 ) -> Result<bool, IpcError>
 where
     W: AsyncWriteExt + Unpin,
 {
     match result {
         Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
+            tokio::task::yield_now().await;
+            drain_broadcast(change_rx);
             let items = state.queue.snapshot().await;
-            codec::write_response(
-                write,
-                &Response::ok(OkPayload::Event {
-                    event: Event::Update { items },
-                }),
-            )
-            .await?;
+            if dedup.should_send_update(&items) {
+                codec::write_response(
+                    write,
+                    &Response::ok(OkPayload::Event {
+                        event: Event::Update { items },
+                    }),
+                )
+                .await?;
+            }
             Ok(true)
         }
         Err(broadcast::error::RecvError::Closed) => Ok(false),
@@ -420,12 +474,14 @@ where
 async fn handle_reload_event<W>(
     result: Result<(), broadcast::error::RecvError>,
     write: &mut W,
+    dedup: &mut SubscribeDedup,
 ) -> Result<bool, IpcError>
 where
     W: AsyncWriteExt + Unpin,
 {
     match result {
         Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
+            dedup.mark_other_event();
             codec::write_response(
                 write,
                 &Response::ok(OkPayload::Event {
@@ -443,19 +499,25 @@ where
 async fn handle_history_event<W>(
     result: Result<(), broadcast::error::RecvError>,
     write: &mut W,
+    history_rx: &mut broadcast::Receiver<()>,
+    dedup: &mut SubscribeDedup,
 ) -> Result<bool, IpcError>
 where
     W: AsyncWriteExt + Unpin,
 {
     match result {
         Ok(()) | Err(broadcast::error::RecvError::Lagged(_)) => {
-            codec::write_response(
-                write,
-                &Response::ok(OkPayload::Event {
-                    event: Event::HistoryChanged,
-                }),
-            )
-            .await?;
+            tokio::task::yield_now().await;
+            drain_broadcast(history_rx);
+            if dedup.should_send_history_changed() {
+                codec::write_response(
+                    write,
+                    &Response::ok(OkPayload::Event {
+                        event: Event::HistoryChanged,
+                    }),
+                )
+                .await?;
+            }
             Ok(true)
         }
         Err(broadcast::error::RecvError::Closed) => Ok(false),
