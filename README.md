@@ -2,6 +2,8 @@
 
 Session notification platform for Linux — a Freedesktop Notifications daemon with a stable **`notredctl`** CLI and optional terminal manager.
 
+![](examples/preview.png)
+
 ## Components
 
 | Binary / crate   | Role                                                                                                         |
