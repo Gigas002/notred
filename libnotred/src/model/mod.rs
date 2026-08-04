@@ -18,6 +18,16 @@ pub struct Notification {
     pub has_actions: bool,
     /// Unix timestamp (seconds) when the notification arrived.
     pub timestamp: i64,
+    /// FDN `value` hint (progress percent, `0..=100`); `None` when unset or
+    /// out of range.
+    pub value: Option<i32>,
+    /// FDN `category` hint (e.g. `"email.arrived"`).
+    pub category: Option<String>,
+    /// FDN `desktop-entry` hint (desktop file id, without `.desktop`).
+    pub desktop_entry: Option<String>,
+    /// Snapshot of `[notifications].body_markup` at ingestion time — whether
+    /// `body` should be treated as Pango markup by subscribers.
+    pub body_markup: bool,
 }
 
 impl Notification {
@@ -32,6 +42,10 @@ impl Notification {
             icon: self.icon.clone(),
             has_actions: self.has_actions,
             timestamp: Some(self.timestamp),
+            value: self.value,
+            category: self.category.clone(),
+            desktop_entry: self.desktop_entry.clone(),
+            body_markup: self.body_markup,
         }
     }
 }

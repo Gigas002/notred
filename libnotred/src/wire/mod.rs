@@ -139,6 +139,21 @@ pub struct MinimalNotification {
     pub has_actions: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<i64>,
+    /// FDN `value` hint (progress percent, `0..=100`) — omitted when the sender
+    /// didn't set it or set it outside that range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<i32>,
+    /// FDN `category` hint (e.g. `"email.arrived"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// FDN `desktop-entry` hint (desktop file id, without the `.desktop` suffix).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desktop_entry: Option<String>,
+    /// Whether the daemon currently advertises the `body-markup` FDN capability
+    /// (`[notifications].body_markup` in `notred.toml`) — when `true`, `body` may
+    /// contain Pango markup the sender expects to be rendered, not escaped.
+    #[serde(default)]
+    pub body_markup: bool,
 }
 
 /// History log row for `list_history`.

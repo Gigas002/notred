@@ -21,6 +21,10 @@ mod host_history_tests {
             action_keys: vec![],
             has_actions: false,
             timestamp: 1,
+            value: None,
+            category: None,
+            desktop_entry: None,
+            body_markup: false,
         }
     }
 
@@ -83,6 +87,10 @@ mod input_tests {
             },
             has_actions,
             timestamp: 0,
+            value: None,
+            category: None,
+            desktop_entry: None,
+            body_markup: false,
         }
     }
 

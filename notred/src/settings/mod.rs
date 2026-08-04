@@ -38,6 +38,7 @@ fn runtime_from_file(file: &FileConfig) -> RuntimeConfig {
         max_visible: file.queue.max_visible,
         default_timeout_ms: file.queue.default_timeout_ms,
         events,
+        body_markup: file.notifications.body_markup,
         #[cfg(feature = "history")]
         history: file.history_settings(),
     }

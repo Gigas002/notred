@@ -15,6 +15,10 @@ fn sample(id: u32, summary: &str) -> Notification {
         action_keys: vec![],
         has_actions: false,
         timestamp: id as i64,
+        value: None,
+        category: None,
+        desktop_entry: None,
+        body_markup: false,
     }
 }
 

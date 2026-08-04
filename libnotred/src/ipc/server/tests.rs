@@ -30,6 +30,10 @@ mod server_tests {
             action_keys: vec!["default".into()],
             has_actions: true,
             timestamp: 0,
+            value: None,
+            category: None,
+            desktop_entry: None,
+            body_markup: false,
         }
     }
 

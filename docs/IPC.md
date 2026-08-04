@@ -73,6 +73,27 @@ When `"key"` is omitted, the server uses **`"default"`**.
 | `history` | `"rows": HistoryRow[]`         | `list_history` |
 | `event`   | `"event": Event`               | `subscribe` stream |
 
+### `MinimalNotification`
+
+| Field            | Type                     | Notes |
+| ---------------- | ------------------------ | ----- |
+| `id`              | u32                      | |
+| `app_id`          | string                   | |
+| `summary`         | string                   | |
+| `body`            | string                   | Pango markup when `body_markup` is `true` (sender-supplied; validate before rendering as markup) |
+| `urgency`         | `"low"` \| `"normal"` \| `"critical"` | |
+| `timeout_ms`      | i32                      | `-1` = daemon default, `0` = persistent |
+| `icon`            | `Icon`, optional         | omitted when the sender provided no icon — see below |
+| `has_actions`     | bool                     | |
+| `timestamp`       | i64, optional            | Unix seconds |
+| `value`           | i32, optional            | FDN `value` hint (progress percent, `0..=100`); omitted when unset or out of range |
+| `category`        | string, optional         | FDN `category` hint (e.g. `"email.arrived"`) |
+| `desktop_entry`   | string, optional         | FDN `desktop-entry` hint (desktop file id, no `.desktop` suffix) |
+| `body_markup`     | bool                     | Snapshot of `[notifications].body_markup` at ingestion time — always present |
+
+`[notifications].body_markup` (`notred.toml`, default `true`) also controls whether
+the FDN `GetCapabilities` D-Bus call advertises `"body-markup"` to senders.
+
 ### `icon`
 
 `MinimalNotification.icon` / `HistoryRow.icon` (both optional — omitted when the

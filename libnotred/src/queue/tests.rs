@@ -15,6 +15,10 @@ fn notif(app: &str, summary: &str) -> Notification {
         action_keys: vec![],
         has_actions: false,
         timestamp: 0,
+        value: None,
+        category: None,
+        desktop_entry: None,
+        body_markup: false,
     }
 }
 
