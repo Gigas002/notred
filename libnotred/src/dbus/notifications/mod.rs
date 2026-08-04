@@ -40,7 +40,9 @@ impl Notifications {
         expire_timeout: i32,
     ) -> u32 {
         let urgency = urgency_from_hints(&hints);
-        let icon = icon_from_str(&app_icon);
+        let icon = icon_from_image_data(&hints)
+            .or_else(|| icon_from_hints(&hints))
+            .or_else(|| icon_from_str(&app_icon));
         let has_actions = !actions.is_empty();
         let action_keys = actions
             .chunks(2)
@@ -128,6 +130,83 @@ fn urgency_from_hints(hints: &HashMap<String, OwnedValue>) -> Urgency {
             _ => Urgency::Normal,
         })
         .unwrap_or(Urgency::Normal)
+}
+
+/// Icon from the `image-data` hint (spec 1.2) / `image_data` / `icon_data`
+/// (spec 1.1) — a raw pixel buffer `(iiibiiay)`: width, height, rowstride,
+/// has_alpha, bits_per_sample, channels, data. Chat/messaging apps (Telegram,
+/// Signal, …) use this to embed a per-notification avatar image that has no
+/// icon-theme name or on-disk file to reference, so it's checked first.
+fn icon_from_image_data(hints: &HashMap<String, OwnedValue>) -> Option<IconRef> {
+    use std::ops::Deref;
+    use zbus::zvariant::Value;
+
+    let value = hints
+        .get("image-data")
+        .or_else(|| hints.get("image_data"))
+        .or_else(|| hints.get("icon_data"))?;
+
+    let Value::Structure(structure) = value.deref() else {
+        return None;
+    };
+    let [
+        Value::I32(width),
+        Value::I32(height),
+        Value::I32(rowstride),
+        Value::Bool(has_alpha),
+        Value::I32(bits_per_sample),
+        Value::I32(channels),
+        Value::Array(pixels),
+    ] = structure.fields()
+    else {
+        return None;
+    };
+
+    let data: Vec<u8> = pixels
+        .iter()
+        .map(|v| match v {
+            Value::U8(b) => Some(*b),
+            _ => None,
+        })
+        .collect::<Option<_>>()?;
+
+    if *width <= 0 || *height <= 0 || data.is_empty() {
+        return None;
+    }
+
+    Some(IconRef::Raw {
+        width: *width,
+        height: *height,
+        rowstride: *rowstride,
+        has_alpha: *has_alpha,
+        bits_per_sample: *bits_per_sample,
+        channels: *channels,
+        data,
+    })
+}
+
+/// Icon from the `image-path` hint (spec 1.2) / `image_path` (spec 1.1,
+/// still sent by some clients). Takes precedence over the legacy `app_icon`
+/// positional argument, matching mako/dunst behavior — most real-world
+/// senders (including `notify-send -i`) put the actual icon here, leaving
+/// `app_icon` empty or set to an unrelated app-badge value.
+fn icon_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<IconRef> {
+    use std::ops::Deref;
+    use zbus::zvariant::Value;
+
+    let raw = hints
+        .get("image-path")
+        .or_else(|| hints.get("image_path"))
+        .and_then(|ov| {
+            if let Value::Str(s) = ov.deref() {
+                Some(s.as_str())
+            } else {
+                None
+            }
+        })?;
+
+    let path = raw.strip_prefix("file://").unwrap_or(raw);
+    icon_from_str(path)
 }
 
 fn icon_from_str(s: &str) -> Option<IconRef> {

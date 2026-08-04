@@ -11,11 +11,12 @@ readme = "../README.md"
 
 [features]
 default = ["ipc"]
-ipc = ["dep:serde", "dep:serde_json"]
+ipc = ["dep:serde", "dep:serde_json", "dep:base64-ng"]
 server = ["ipc", "dep:zbus"]
 history = ["server", "dep:rusqlite"]
 
 [dependencies]
+base64-ng = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }

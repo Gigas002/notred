@@ -176,8 +176,41 @@ pub enum Urgency {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum IconRef {
-    Name { name: String },
-    Path { path: String },
+    Name {
+        name: String,
+    },
+    Path {
+        path: String,
+    },
+    /// Raw pixel data from the FDN `image-data` / `icon_data` hint — used by
+    /// senders (chat apps showing a per-message avatar, etc.) that have no
+    /// icon-theme name or on-disk file to reference.
+    Raw {
+        width: i32,
+        height: i32,
+        /// Bytes per row, including any padding (may exceed `width * channels`).
+        rowstride: i32,
+        has_alpha: bool,
+        bits_per_sample: i32,
+        channels: i32,
+        #[serde(with = "base64_bytes")]
+        data: Vec<u8>,
+    },
+}
+
+/// Base64-encodes raw icon pixel bytes for JSON transport (`IconRef::Raw::data`).
+mod base64_bytes {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+        let encoded = base64_ng::encode(bytes).map_err(serde::ser::Error::custom)?;
+        serializer.serialize_str(&encoded)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+        let encoded = String::deserialize(deserializer)?;
+        base64_ng::decode(&encoded).map_err(serde::de::Error::custom)
+    }
 }
 
 /// Events pushed on `subscribe`.
