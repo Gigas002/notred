@@ -73,6 +73,22 @@ When `"key"` is omitted, the server uses **`"default"`**.
 | `history` | `"rows": HistoryRow[]`         | `list_history` |
 | `event`   | `"event": Event`               | `subscribe` stream |
 
+### `icon`
+
+`MinimalNotification.icon` / `HistoryRow.icon` (both optional — omitted when the
+sender provided no icon). One of three untagged shapes, tried in this order by
+`icon_from_image_data` → `icon_from_hints` → `icon_from_str` (`app_icon`):
+
+| Shape  | Fields | Source |
+| ------ | ------ | ------ |
+| Name   | `"name": string` | FDN `app_icon` or `image-path`/`image_path` hint, no `/` |
+| Path   | `"path": string` | FDN `app_icon` or `image-path`/`image_path` hint, containing `/` (`file://` prefix stripped) |
+| Raw    | `"width"`, `"height"`, `"rowstride"`, `"has_alpha"`, `"bits_per_sample"`, `"channels"` (all i32/bool), `"data"` (base64 string) | FDN `image-data`/`image_data`/`icon_data` hint (`(iiibiiay)`) — raw pixel buffer, used by senders with no icon-theme name or on-disk file (e.g. chat app avatars) |
+
+`data` is the raw pixel bytes, row-major, straight (non-premultiplied) alpha,
+base64-encoded for JSON transport. `rowstride` may exceed `width * channels`
+(padding) — consumers must index rows by `rowstride`, not `width * channels`.
+
 ### `HistoryRow`
 
 Same core fields as `MinimalNotification`, plus:
