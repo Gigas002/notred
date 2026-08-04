@@ -32,6 +32,9 @@ pub struct FileConfig {
     pub queue: QueueConfig,
 
     #[serde(default)]
+    pub notifications: NotificationsConfig,
+
+    #[serde(default)]
     pub events: EventsConfig,
 
     #[cfg(feature = "history")]
@@ -71,6 +74,27 @@ impl Default for QueueConfig {
             default_timeout_ms: default_default_timeout_ms(),
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NotificationsConfig {
+    /// Advertise the FDN `body-markup` capability and tag outgoing
+    /// notifications so subscribers (e.g. poshanka) render `body` as Pango
+    /// markup instead of escaped plain text.
+    #[serde(default = "default_body_markup")]
+    pub body_markup: bool,
+}
+
+impl Default for NotificationsConfig {
+    fn default() -> Self {
+        Self {
+            body_markup: default_body_markup(),
+        }
+    }
+}
+
+fn default_body_markup() -> bool {
+    true
 }
 
 #[cfg(feature = "history")]
@@ -134,6 +158,7 @@ impl Default for FileConfig {
             log_filter: default_log_filter(),
             paths: PathsConfig::default(),
             queue: QueueConfig::default(),
+            notifications: NotificationsConfig::default(),
             events: EventsConfig::default(),
             #[cfg(feature = "history")]
             history: HistoryConfig::default(),

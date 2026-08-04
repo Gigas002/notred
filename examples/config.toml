@@ -16,6 +16,9 @@ overrides = [
 # max_visible = 0          # 0 = unlimited active notifications
 # default_timeout_ms = 0   # used when FDN expire_timeout is -1; 0 = persistent
 
+[notifications]
+# body_markup = true   # advertise FDN "body-markup" capability; tags MinimalNotification.body_markup
+
 # Global event hooks. Each key is optional; fragments override per-key (see docs/PLAN.md §5.2).
 # Env: NOTRED_ID, NOTRED_APP_ID, NOTRED_EVENT_KIND, NOTRED_ACTION_KEY, NOTRED_SUMMARY, …
 [events]

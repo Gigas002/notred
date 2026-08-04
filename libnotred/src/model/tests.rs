@@ -14,6 +14,10 @@ fn sample() -> Notification {
         action_keys: vec![],
         has_actions: false,
         timestamp: 1_000_000,
+        value: Some(42),
+        category: Some("email.arrived".into()),
+        desktop_entry: Some("thunderbird".into()),
+        body_markup: true,
     }
 }
 
@@ -28,6 +32,10 @@ fn to_minimal_maps_fields() {
     assert_eq!(m.timeout_ms, 5000);
     assert_eq!(m.timestamp, Some(1_000_000));
     assert!(!m.has_actions);
+    assert_eq!(m.value, Some(42));
+    assert_eq!(m.category.as_deref(), Some("email.arrived"));
+    assert_eq!(m.desktop_entry.as_deref(), Some("thunderbird"));
+    assert!(m.body_markup);
 }
 
 #[test]

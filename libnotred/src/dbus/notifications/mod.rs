@@ -48,6 +48,10 @@ impl Notifications {
             .chunks(2)
             .filter_map(|c| c.first().cloned())
             .collect();
+        let value = value_from_hints(&hints);
+        let category = string_hint(&hints, "category");
+        let desktop_entry = string_hint(&hints, "desktop-entry");
+        let body_markup = self.state.runtime_config().await.body_markup;
 
         let notif = Notification {
             id: 0,
@@ -61,6 +65,10 @@ impl Notifications {
             action_keys,
             has_actions,
             timestamp: now_unix(),
+            value,
+            category,
+            desktop_entry,
+            body_markup,
         };
 
         let id = self.state.push_notification(notif).await;
@@ -85,8 +93,12 @@ impl Notifications {
     }
 
     /// FDN `GetCapabilities`.
-    fn get_capabilities(&self) -> Vec<String> {
-        vec!["body".into(), "actions".into()]
+    async fn get_capabilities(&self) -> Vec<String> {
+        let mut caps = vec!["body".into(), "actions".into()];
+        if self.state.runtime_config().await.body_markup {
+            caps.push("body-markup".into());
+        }
+        caps
     }
 
     /// FDN `GetServerInformation`.
@@ -130,6 +142,38 @@ fn urgency_from_hints(hints: &HashMap<String, OwnedValue>) -> Urgency {
             _ => Urgency::Normal,
         })
         .unwrap_or(Urgency::Normal)
+}
+
+/// FDN `value` hint (INT32) — progress percent. Out-of-spec values (outside
+/// `0..=100`) are treated as absent so subscribers never see an invalid bar.
+fn value_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<i32> {
+    use std::ops::Deref;
+    use zbus::zvariant::Value;
+
+    hints
+        .get("value")
+        .and_then(|ov| {
+            if let Value::I32(n) = ov.deref() {
+                Some(*n)
+            } else {
+                None
+            }
+        })
+        .filter(|n| (0..=100).contains(n))
+}
+
+/// String-valued hint lookup (`category`, `desktop-entry`, …).
+fn string_hint(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
+    use std::ops::Deref;
+    use zbus::zvariant::Value;
+
+    hints.get(key).and_then(|ov| {
+        if let Value::Str(s) = ov.deref() {
+            Some(s.as_str().to_string())
+        } else {
+            None
+        }
+    })
 }
 
 /// Icon from the `image-data` hint (spec 1.2) / `image_data` / `icon_data`

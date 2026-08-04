@@ -20,6 +20,9 @@ pub struct RuntimeConfig {
     /// Default auto-dismiss when FDN `expire_timeout` is `-1` (`0` = persistent).
     pub default_timeout_ms: u32,
     pub events: EventsPolicy,
+    /// Whether to advertise the FDN `body-markup` capability and tag
+    /// outgoing notifications' `body_markup` accordingly.
+    pub body_markup: bool,
     #[cfg(feature = "history")]
     pub history: HistorySettings,
 }
@@ -33,6 +36,7 @@ impl Default for RuntimeConfig {
                 base: Default::default(),
                 overrides: vec![],
             },
+            body_markup: true,
             #[cfg(feature = "history")]
             history: HistorySettings::default(),
         }

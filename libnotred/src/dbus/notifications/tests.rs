@@ -1,6 +1,17 @@
-use super::{icon_from_hints, icon_from_image_data, icon_from_str, urgency_from_hints};
+use super::{
+    Notifications, icon_from_hints, icon_from_image_data, icon_from_str, string_hint,
+    urgency_from_hints, value_from_hints,
+};
+use crate::host::state::{HostState, RuntimeConfig};
+use crate::queue::Queue;
 use crate::wire::{IconRef, Urgency};
 use std::collections::HashMap;
+use std::sync::Arc;
+
+fn notifications_with(runtime: RuntimeConfig) -> Notifications {
+    let state = HostState::new(runtime, Arc::new(Queue::new()));
+    Notifications::new(state)
+}
 
 #[test]
 fn icon_empty_is_none() {
@@ -151,4 +162,163 @@ fn urgency_low_critical_parsed() {
     let mut hints2 = HashMap::new();
     hints2.insert("urgency".into(), critical);
     assert_eq!(urgency_from_hints(&hints2), Urgency::Critical);
+}
+
+#[test]
+fn value_absent_is_none() {
+    let hints = HashMap::new();
+    assert_eq!(value_from_hints(&hints), None);
+}
+
+#[test]
+fn value_in_range_is_parsed() {
+    use zbus::zvariant::Value;
+
+    let mut hints = HashMap::new();
+    hints.insert("value".into(), Value::I32(42).try_into().unwrap());
+    assert_eq!(value_from_hints(&hints), Some(42));
+}
+
+#[test]
+fn value_out_of_range_is_none() {
+    use zbus::zvariant::Value;
+
+    let mut over = HashMap::new();
+    over.insert("value".into(), Value::I32(101).try_into().unwrap());
+    assert_eq!(value_from_hints(&over), None);
+
+    let mut under = HashMap::new();
+    under.insert("value".into(), Value::I32(-1).try_into().unwrap());
+    assert_eq!(value_from_hints(&under), None);
+}
+
+#[test]
+fn value_boundary_values_are_parsed() {
+    use zbus::zvariant::Value;
+
+    let mut zero = HashMap::new();
+    zero.insert("value".into(), Value::I32(0).try_into().unwrap());
+    assert_eq!(value_from_hints(&zero), Some(0));
+
+    let mut hundred = HashMap::new();
+    hundred.insert("value".into(), Value::I32(100).try_into().unwrap());
+    assert_eq!(value_from_hints(&hundred), Some(100));
+}
+
+#[test]
+fn string_hint_reads_category() {
+    use zbus::zvariant::Value;
+
+    let mut hints = HashMap::new();
+    hints.insert(
+        "category".into(),
+        Value::Str("email.arrived".into()).try_into().unwrap(),
+    );
+    assert_eq!(
+        string_hint(&hints, "category"),
+        Some("email.arrived".into())
+    );
+}
+
+#[test]
+fn string_hint_reads_desktop_entry() {
+    use zbus::zvariant::Value;
+
+    let mut hints = HashMap::new();
+    hints.insert(
+        "desktop-entry".into(),
+        Value::Str("firefox".into()).try_into().unwrap(),
+    );
+    assert_eq!(string_hint(&hints, "desktop-entry"), Some("firefox".into()));
+}
+
+#[test]
+fn string_hint_absent_is_none() {
+    let hints = HashMap::new();
+    assert_eq!(string_hint(&hints, "category"), None);
+}
+
+#[tokio::test]
+async fn capabilities_include_body_markup_when_enabled() {
+    let n = notifications_with(RuntimeConfig {
+        body_markup: true,
+        ..RuntimeConfig::default()
+    });
+    assert!(
+        n.get_capabilities()
+            .await
+            .contains(&"body-markup".to_string())
+    );
+}
+
+#[tokio::test]
+async fn capabilities_omit_body_markup_when_disabled() {
+    let n = notifications_with(RuntimeConfig {
+        body_markup: false,
+        ..RuntimeConfig::default()
+    });
+    assert!(
+        !n.get_capabilities()
+            .await
+            .contains(&"body-markup".to_string())
+    );
+}
+
+#[tokio::test]
+async fn notify_tags_notification_with_current_body_markup_setting() {
+    let n = notifications_with(RuntimeConfig {
+        body_markup: false,
+        ..RuntimeConfig::default()
+    });
+    let id = n
+        .notify(
+            "app".into(),
+            0,
+            String::new(),
+            "summary".into(),
+            "body".into(),
+            vec![],
+            HashMap::new(),
+            -1,
+        )
+        .await;
+    let notif = n.state.queue.get(id).await.unwrap();
+    assert!(!notif.body_markup);
+    assert_eq!(notif.value, None);
+    assert_eq!(notif.category, None);
+    assert_eq!(notif.desktop_entry, None);
+}
+
+#[tokio::test]
+async fn notify_captures_value_category_desktop_entry_hints() {
+    use zbus::zvariant::Value;
+
+    let n = notifications_with(RuntimeConfig::default());
+    let mut hints = HashMap::new();
+    hints.insert("value".into(), Value::I32(55).try_into().unwrap());
+    hints.insert(
+        "category".into(),
+        Value::Str("email.arrived".into()).try_into().unwrap(),
+    );
+    hints.insert(
+        "desktop-entry".into(),
+        Value::Str("thunderbird".into()).try_into().unwrap(),
+    );
+
+    let id = n
+        .notify(
+            "app".into(),
+            0,
+            String::new(),
+            "summary".into(),
+            "body".into(),
+            vec![],
+            hints,
+            -1,
+        )
+        .await;
+    let notif = n.state.queue.get(id).await.unwrap();
+    assert_eq!(notif.value, Some(55));
+    assert_eq!(notif.category.as_deref(), Some("email.arrived"));
+    assert_eq!(notif.desktop_entry.as_deref(), Some("thunderbird"));
 }
