@@ -12,7 +12,7 @@ repository = "https://github.com/Gigas002/notred"
 version = "0.1.0"
 
 [workspace.dependencies]
-base64-ng = "1"
+base64-ng = "2"
 clap = { version = "4", features = ["derive"] }
 libnotred = { path = "libnotred" }
 serde = { version = "1", features = ["derive"] }
