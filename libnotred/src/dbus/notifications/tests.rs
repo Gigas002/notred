@@ -39,8 +39,8 @@ fn image_data_hint(
     height: i32,
     has_alpha: bool,
     data: Vec<u8>,
-) -> HashMap<String, zbus::zvariant::OwnedValue> {
-    use zbus::zvariant::{Structure, Value};
+) -> HashMap<String, zbus::OwnedVariant> {
+    use zbus::{Structure, Variant};
 
     let channels = if has_alpha { 4 } else { 3 };
     let rowstride = width * channels;
@@ -49,7 +49,7 @@ fn image_data_hint(
     let mut hints = HashMap::new();
     hints.insert(
         "image-data".into(),
-        Value::Structure(structure).try_into().unwrap(),
+        Variant::Structure(structure).try_into().unwrap(),
     );
     hints
 }
@@ -85,12 +85,12 @@ fn icon_from_image_data_none_for_empty_pixels() {
 
 #[test]
 fn icon_from_hints_reads_image_path() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let mut hints = HashMap::new();
     hints.insert(
         "image-path".into(),
-        Value::Str("web-browser".into()).try_into().unwrap(),
+        Variant::Str("web-browser".into()).try_into().unwrap(),
     );
     assert_eq!(
         icon_from_hints(&hints),
@@ -102,12 +102,12 @@ fn icon_from_hints_reads_image_path() {
 
 #[test]
 fn icon_from_hints_strips_file_uri_prefix() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let mut hints = HashMap::new();
     hints.insert(
         "image-path".into(),
-        Value::Str("file:///tmp/icon.png".into())
+        Variant::Str("file:///tmp/icon.png".into())
             .try_into()
             .unwrap(),
     );
@@ -121,12 +121,12 @@ fn icon_from_hints_strips_file_uri_prefix() {
 
 #[test]
 fn icon_from_hints_falls_back_to_legacy_underscore_key() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let mut hints = HashMap::new();
     hints.insert(
         "image_path".into(),
-        Value::Str("firefox".into()).try_into().unwrap(),
+        Variant::Str("firefox".into()).try_into().unwrap(),
     );
     assert_eq!(
         icon_from_hints(&hints),
@@ -150,10 +150,10 @@ fn urgency_default_is_normal() {
 
 #[test]
 fn urgency_low_critical_parsed() {
-    use zbus::zvariant::{OwnedValue, Value};
+    use zbus::{OwnedVariant, Variant};
 
-    let low: OwnedValue = Value::U8(0).try_into().unwrap();
-    let critical: OwnedValue = Value::U8(2).try_into().unwrap();
+    let low: OwnedVariant = Variant::U8(0).try_into().unwrap();
+    let critical: OwnedVariant = Variant::U8(2).try_into().unwrap();
 
     let mut hints = HashMap::new();
     hints.insert("urgency".into(), low);
@@ -172,47 +172,47 @@ fn value_absent_is_none() {
 
 #[test]
 fn value_in_range_is_parsed() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let mut hints = HashMap::new();
-    hints.insert("value".into(), Value::I32(42).try_into().unwrap());
+    hints.insert("value".into(), Variant::I32(42).try_into().unwrap());
     assert_eq!(value_from_hints(&hints), Some(42));
 }
 
 #[test]
 fn value_out_of_range_is_none() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let mut over = HashMap::new();
-    over.insert("value".into(), Value::I32(101).try_into().unwrap());
+    over.insert("value".into(), Variant::I32(101).try_into().unwrap());
     assert_eq!(value_from_hints(&over), None);
 
     let mut under = HashMap::new();
-    under.insert("value".into(), Value::I32(-1).try_into().unwrap());
+    under.insert("value".into(), Variant::I32(-1).try_into().unwrap());
     assert_eq!(value_from_hints(&under), None);
 }
 
 #[test]
 fn value_boundary_values_are_parsed() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let mut zero = HashMap::new();
-    zero.insert("value".into(), Value::I32(0).try_into().unwrap());
+    zero.insert("value".into(), Variant::I32(0).try_into().unwrap());
     assert_eq!(value_from_hints(&zero), Some(0));
 
     let mut hundred = HashMap::new();
-    hundred.insert("value".into(), Value::I32(100).try_into().unwrap());
+    hundred.insert("value".into(), Variant::I32(100).try_into().unwrap());
     assert_eq!(value_from_hints(&hundred), Some(100));
 }
 
 #[test]
 fn string_hint_reads_category() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let mut hints = HashMap::new();
     hints.insert(
         "category".into(),
-        Value::Str("email.arrived".into()).try_into().unwrap(),
+        Variant::Str("email.arrived".into()).try_into().unwrap(),
     );
     assert_eq!(
         string_hint(&hints, "category"),
@@ -222,12 +222,12 @@ fn string_hint_reads_category() {
 
 #[test]
 fn string_hint_reads_desktop_entry() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let mut hints = HashMap::new();
     hints.insert(
         "desktop-entry".into(),
-        Value::Str("firefox".into()).try_into().unwrap(),
+        Variant::Str("firefox".into()).try_into().unwrap(),
     );
     assert_eq!(string_hint(&hints, "desktop-entry"), Some("firefox".into()));
 }
@@ -291,18 +291,18 @@ async fn notify_tags_notification_with_current_body_markup_setting() {
 
 #[tokio::test]
 async fn notify_captures_value_category_desktop_entry_hints() {
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let n = notifications_with(RuntimeConfig::default());
     let mut hints = HashMap::new();
-    hints.insert("value".into(), Value::I32(55).try_into().unwrap());
+    hints.insert("value".into(), Variant::I32(55).try_into().unwrap());
     hints.insert(
         "category".into(),
-        Value::Str("email.arrived".into()).try_into().unwrap(),
+        Variant::Str("email.arrived".into()).try_into().unwrap(),
     );
     hints.insert(
         "desktop-entry".into(),
-        Value::Str("thunderbird".into()).try_into().unwrap(),
+        Variant::Str("thunderbird".into()).try_into().unwrap(),
     );
 
     let id = n
