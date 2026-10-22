@@ -104,12 +104,12 @@ impl NotredHost {
             });
         }
 
-        let conn = connection::Builder::session()?
-            .name(notifications::BUS_NAME)?
+        let conn = connection::Builder::session()
+            .name(notifications::BUS_NAME)
             .serve_at(
                 notifications::OBJECT_PATH,
                 Notifications::new(Arc::clone(&state)),
-            )?
+            )
             .build()
             .await?;
 

@@ -3,9 +3,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use zbus::OwnedVariant;
 use zbus::interface;
 use zbus::object_server::SignalEmitter;
-use zbus::zvariant::OwnedValue;
 
 use crate::host::state::HostState;
 use crate::model::{CloseReason, Notification};
@@ -36,7 +36,7 @@ impl Notifications {
         summary: String,
         body: String,
         actions: Vec<String>,
-        hints: HashMap<String, OwnedValue>,
+        hints: HashMap<String, OwnedVariant>,
         expire_timeout: i32,
     ) -> u32 {
         let urgency = urgency_from_hints(&hints);
@@ -123,14 +123,14 @@ impl Notifications {
     ) -> zbus::Result<()>;
 }
 
-fn urgency_from_hints(hints: &HashMap<String, OwnedValue>) -> Urgency {
+fn urgency_from_hints(hints: &HashMap<String, OwnedVariant>) -> Urgency {
     use std::ops::Deref;
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     hints
         .get("urgency")
         .and_then(|ov| {
-            if let Value::U8(n) = ov.deref() {
+            if let Variant::U8(n) = ov.deref() {
                 Some(*n)
             } else {
                 None
@@ -146,14 +146,14 @@ fn urgency_from_hints(hints: &HashMap<String, OwnedValue>) -> Urgency {
 
 /// FDN `value` hint (INT32) — progress percent. Out-of-spec values (outside
 /// `0..=100`) are treated as absent so subscribers never see an invalid bar.
-fn value_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<i32> {
+fn value_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<i32> {
     use std::ops::Deref;
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     hints
         .get("value")
         .and_then(|ov| {
-            if let Value::I32(n) = ov.deref() {
+            if let Variant::I32(n) = ov.deref() {
                 Some(*n)
             } else {
                 None
@@ -163,12 +163,12 @@ fn value_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<i32> {
 }
 
 /// String-valued hint lookup (`category`, `desktop-entry`, …).
-fn string_hint(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
+fn string_hint(hints: &HashMap<String, OwnedVariant>, key: &str) -> Option<String> {
     use std::ops::Deref;
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     hints.get(key).and_then(|ov| {
-        if let Value::Str(s) = ov.deref() {
+        if let Variant::Str(s) = ov.deref() {
             Some(s.as_str().to_string())
         } else {
             None
@@ -181,26 +181,26 @@ fn string_hint(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String>
 /// has_alpha, bits_per_sample, channels, data. Chat/messaging apps (Telegram,
 /// Signal, …) use this to embed a per-notification avatar image that has no
 /// icon-theme name or on-disk file to reference, so it's checked first.
-fn icon_from_image_data(hints: &HashMap<String, OwnedValue>) -> Option<IconRef> {
+fn icon_from_image_data(hints: &HashMap<String, OwnedVariant>) -> Option<IconRef> {
     use std::ops::Deref;
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let value = hints
         .get("image-data")
         .or_else(|| hints.get("image_data"))
         .or_else(|| hints.get("icon_data"))?;
 
-    let Value::Structure(structure) = value.deref() else {
+    let Variant::Structure(structure) = value.deref() else {
         return None;
     };
     let [
-        Value::I32(width),
-        Value::I32(height),
-        Value::I32(rowstride),
-        Value::Bool(has_alpha),
-        Value::I32(bits_per_sample),
-        Value::I32(channels),
-        Value::Array(pixels),
+        Variant::I32(width),
+        Variant::I32(height),
+        Variant::I32(rowstride),
+        Variant::Bool(has_alpha),
+        Variant::I32(bits_per_sample),
+        Variant::I32(channels),
+        Variant::Array(pixels),
     ] = structure.fields()
     else {
         return None;
@@ -209,7 +209,7 @@ fn icon_from_image_data(hints: &HashMap<String, OwnedValue>) -> Option<IconRef> 
     let data: Vec<u8> = pixels
         .iter()
         .map(|v| match v {
-            Value::U8(b) => Some(*b),
+            Variant::U8(b) => Some(*b),
             _ => None,
         })
         .collect::<Option<_>>()?;
@@ -234,15 +234,15 @@ fn icon_from_image_data(hints: &HashMap<String, OwnedValue>) -> Option<IconRef> 
 /// positional argument, matching mako/dunst behavior — most real-world
 /// senders (including `notify-send -i`) put the actual icon here, leaving
 /// `app_icon` empty or set to an unrelated app-badge value.
-fn icon_from_hints(hints: &HashMap<String, OwnedValue>) -> Option<IconRef> {
+fn icon_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<IconRef> {
     use std::ops::Deref;
-    use zbus::zvariant::Value;
+    use zbus::Variant;
 
     let raw = hints
         .get("image-path")
         .or_else(|| hints.get("image_path"))
         .and_then(|ov| {
-            if let Value::Str(s) = ov.deref() {
+            if let Variant::Str(s) = ov.deref() {
                 Some(s.as_str())
             } else {
                 None
