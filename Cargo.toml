@@ -22,6 +22,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-util", "ne
 toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 zbus = { version = "6", default-features = false, features = ["tokio", "service"] }
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
