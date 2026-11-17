@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 
 - libnotred: `Notification` and `ActivateEvent` gain a public `resident` field, so struct literals of them must set it.
 - libnotred: `Queue::set_paused` returns the ids it released; `Queue::is_held` and `HostState::set_paused` are new.
+- libnotred: new `HistoryStore::max_id` and `Queue::allocate_ids_after`.
 
 ### Fixed
 
@@ -17,5 +18,6 @@ All notable changes to this project are documented in this file.
 - **Notifications received while paused no longer expire before you see them.** Their timeout ran while they were held, so after `unpause` anything with a timeout was already gone. The timeout now starts when unpausing shows them.
 - **Unpausing respects `[queue].max_visible`.** Everything held while paused became visible at once, beyond the cap.
 - **notred-tui shows the history when a notification carries an image.** Its list parser knew icon names and paths but not raw `image-data` icons (chat app avatars), so one such notification made the whole history fail to load.
+- **History kept across restarts (`flush = false`) is no longer overwritten.** Notification ids restart at 1 each run, and history rows are keyed by id, so new notifications replaced old entries one by one. New ids now continue after the highest id in the history.
 
 ## [0.1.0] - 2026-09-04

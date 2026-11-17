@@ -265,3 +265,26 @@ async fn paused_notifications_keep_their_timeout_until_shown() {
     let mut signals = Signals::new(&conn).await;
     assert_eq!(signals.next().await, Signal::Closed { id, reason: 1 });
 }
+
+#[cfg(feature = "history")]
+#[tokio::test]
+async fn kept_history_survives_a_restart() {
+    let bus = bus_or_skip!();
+    let config = "[history]\nenabled = true\nflush = false\nmax_entries = 0\n";
+    let mut notred = common::Notred::start(&bus, config).await;
+    let conn = bus.connect().await;
+    Notify::new("before restart").send(&conn).await;
+    notred.restart(&bus).await;
+    let conn = bus.connect().await;
+    Notify::new("after restart").send(&conn).await;
+
+    let rows = notred
+        .client()
+        .await
+        .list_history(None, None, None)
+        .await
+        .unwrap();
+    let mut summaries: Vec<_> = rows.iter().map(|r| r.summary.as_str()).collect();
+    summaries.sort_unstable();
+    assert_eq!(summaries, ["after restart", "before restart"]);
+}

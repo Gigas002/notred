@@ -161,3 +161,13 @@ async fn unpause_keeps_max_visible() {
     let summaries: Vec<_> = q.snapshot().await.into_iter().map(|n| n.summary).collect();
     assert_eq!(summaries, ["held 1", "held 2"], "the oldest is evicted");
 }
+
+#[tokio::test]
+async fn allocate_ids_after_skips_used_ids() {
+    let q = Queue::new();
+    q.allocate_ids_after(41).await;
+    assert_eq!(q.push(notif("a", "x")).await, 42);
+    // Never moves backwards.
+    q.allocate_ids_after(5).await;
+    assert_eq!(q.push(notif("a", "y")).await, 43);
+}

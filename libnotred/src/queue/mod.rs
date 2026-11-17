@@ -135,6 +135,16 @@ impl Queue {
         id
     }
 
+    /// Make new ids start above `id`, e.g. above the ids still in a history
+    /// kept from an earlier run, so a new notification never reuses one.
+    pub async fn allocate_ids_after(&self, id: u32) {
+        let mut inner = self.inner.write().await;
+        let next = id.checked_add(1).unwrap_or(1);
+        if next > inner.next_id {
+            inner.next_id = next;
+        }
+    }
+
     /// Whether new notifications are held instead of surfaced to subscribers.
     pub async fn is_paused(&self) -> bool {
         self.inner.read().await.paused

@@ -83,6 +83,12 @@ impl NotredHost {
         if self.config.runtime.history.enabled {
             match HistoryStore::open(&self.config.history_path, self.config.runtime.history.flush) {
                 Ok(store) => {
+                    // Ids restart at 1 each run; a kept history must not get
+                    // its rows overwritten by new notifications reusing them.
+                    match store.max_id() {
+                        Ok(max) => queue.allocate_ids_after(max).await,
+                        Err(e) => tracing::warn!(%e, "can't read history ids"),
+                    }
                     state
                         .init_history(Arc::new(store), &self.config.runtime.history)
                         .await;

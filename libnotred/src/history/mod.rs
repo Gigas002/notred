@@ -161,6 +161,16 @@ impl HistoryStore {
             .map_err(HistoryError::from)
     }
 
+    /// The highest notification id stored, or `0` when empty.
+    pub fn max_id(&self) -> Result<u32, HistoryError> {
+        let conn = self.conn.lock().expect("history db mutex poisoned");
+        let max: i64 =
+            conn.query_row("SELECT COALESCE(MAX(id), 0) FROM notifications", [], |r| {
+                r.get(0)
+            })?;
+        Ok(u32::try_from(max).unwrap_or(u32::MAX))
+    }
+
     /// Drop oldest rows until at most `max` remain (`max == 0` = unlimited).
     pub fn enforce_cap(&self, max: u32) -> Result<(), HistoryError> {
         if max == 0 {
