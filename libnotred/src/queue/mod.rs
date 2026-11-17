@@ -155,6 +155,7 @@ impl Queue {
         let released = held.iter().map(|n| n.id).collect();
         inner.items.extend(held);
         drop(inner);
+        self.enforce_max_visible().await;
         let _ = self.change_tx.send(());
         released
     }

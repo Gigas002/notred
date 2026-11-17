@@ -148,3 +148,16 @@ async fn change_broadcast_fires_on_push_and_close() {
     q.close(id, CloseReason::DismissedByUser).await;
     rx.try_recv().expect("change on close");
 }
+
+#[tokio::test]
+async fn unpause_keeps_max_visible() {
+    let q = Queue::new();
+    q.set_max_visible(2).await;
+    q.set_paused(true).await;
+    for i in 0..3 {
+        q.push(notif("app", &format!("held {i}"))).await;
+    }
+    q.set_paused(false).await;
+    let summaries: Vec<_> = q.snapshot().await.into_iter().map(|n| n.summary).collect();
+    assert_eq!(summaries, ["held 1", "held 2"], "the oldest is evicted");
+}
