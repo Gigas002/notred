@@ -10,8 +10,10 @@ pub struct HistoryRow {
     pub body: String,
     pub urgency: Urgency,
     pub timeout_ms: i32,
+    /// Not displayed; kept as JSON so any icon shape (name, path, or raw
+    /// `image-data` pixels) parses.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub icon: Option<IconRef>,
+    pub icon: Option<serde_json::Value>,
     pub has_actions: bool,
     #[serde(default)]
     pub action_keys: Vec<String>,
@@ -32,13 +34,6 @@ pub enum Urgency {
     Low,
     Normal,
     Critical,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(untagged)]
-pub enum IconRef {
-    Name { name: String },
-    Path { path: String },
 }
 
 impl HistoryRow {
