@@ -20,4 +20,8 @@ All notable changes to this project are documented in this file.
 - **notred-tui shows the history when a notification carries an image.** Its list parser knew icon names and paths but not raw `image-data` icons (chat app avatars), so one such notification made the whole history fail to load.
 - **History kept across restarts (`flush = false`) is no longer overwritten.** Notification ids restart at 1 each run, and history rows are keyed by id, so new notifications replaced old entries one by one. New ids now continue after the highest id in the history.
 
+### Security
+
+- The history database (`history.db`) is now readable by its owner only (mode 0600); it was created with the default umask, usually 0644, and holds notification text.
+
 ## [0.1.0] - 2026-09-04

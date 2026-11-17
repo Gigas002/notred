@@ -60,6 +60,12 @@ impl HistoryStore {
             std::fs::create_dir_all(parent)?;
         }
         let conn = Connection::open(path)?;
+        // Notification text (messages, login codes) is for this user only.
+        // SQLite gives its journal files the database file's mode.
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+        }
         conn.execute_batch(SCHEMA)?;
         let store = Self {
             conn: Mutex::new(conn),
