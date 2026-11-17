@@ -556,7 +556,7 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "libnotred"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64-ng",
  "rusqlite",
@@ -663,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "notred"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "libnotred",
@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "notred-tui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "ratatui",
@@ -696,7 +696,7 @@ dependencies = [
 
 [[package]]
 name = "notredctl"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "libnotred",
