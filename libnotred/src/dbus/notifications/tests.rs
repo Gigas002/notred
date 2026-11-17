@@ -322,3 +322,53 @@ async fn notify_captures_value_category_desktop_entry_hints() {
     assert_eq!(notif.category.as_deref(), Some("email.arrived"));
     assert_eq!(notif.desktop_entry.as_deref(), Some("thunderbird"));
 }
+
+fn raw_hint(
+    (width, height, rowstride): (i32, i32, i32),
+    has_alpha: bool,
+    bits: i32,
+    channels: i32,
+    data: Vec<u8>,
+) -> HashMap<String, zbus::OwnedVariant> {
+    use zbus::{Structure, Variant};
+    let structure: Structure = (width, height, rowstride, has_alpha, bits, channels, data).into();
+    let mut hints = HashMap::new();
+    hints.insert(
+        "image-data".into(),
+        Variant::Structure(structure).try_into().unwrap(),
+    );
+    hints
+}
+
+#[test]
+fn image_data_with_padded_rows_is_accepted() {
+    // 2x2 RGB with 2 bytes of padding per row; the last row needs none.
+    let hints = raw_hint((2, 2, 8), false, 8, 3, vec![1; 8 + 6]);
+    assert!(icon_from_image_data(&hints).is_some());
+}
+
+#[test]
+fn image_data_shorter_than_its_rows_is_ignored() {
+    let hints = raw_hint((2, 2, 6), false, 8, 3, vec![1; 11]);
+    assert!(icon_from_image_data(&hints).is_none());
+}
+
+#[test]
+fn image_data_with_a_rowstride_below_the_row_is_ignored() {
+    let hints = raw_hint((2, 2, 4), false, 8, 3, vec![1; 12]);
+    assert!(icon_from_image_data(&hints).is_none());
+}
+
+#[test]
+fn image_data_outside_the_spec_formats_is_ignored() {
+    // One channel (consumers index three), 16 bits, alpha without 4 channels.
+    assert!(icon_from_image_data(&raw_hint((2, 1, 2), false, 8, 1, vec![1; 2])).is_none());
+    assert!(icon_from_image_data(&raw_hint((1, 1, 6), false, 16, 3, vec![1; 6])).is_none());
+    assert!(icon_from_image_data(&raw_hint((1, 1, 3), true, 8, 3, vec![1; 3])).is_none());
+}
+
+#[test]
+fn a_huge_claimed_size_does_not_overflow() {
+    let hints = raw_hint((i32::MAX, i32::MAX, i32::MAX), true, 8, 4, vec![1; 16]);
+    assert!(icon_from_image_data(&hints).is_none());
+}

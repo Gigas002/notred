@@ -226,7 +226,24 @@ fn icon_from_image_data(hints: &HashMap<String, OwnedVariant>) -> Option<IconRef
         })
         .collect::<Option<_>>()?;
 
-    if *width <= 0 || *height <= 0 || data.is_empty() {
+    if !raw_image_is_valid(
+        *width,
+        *height,
+        *rowstride,
+        *has_alpha,
+        *bits_per_sample,
+        *channels,
+        data.len(),
+    ) {
+        tracing::debug!(
+            width,
+            height,
+            rowstride,
+            channels,
+            bits_per_sample,
+            len = data.len(),
+            "ignoring invalid image-data"
+        );
         return None;
     }
 
@@ -239,6 +256,32 @@ fn icon_from_image_data(hints: &HashMap<String, OwnedVariant>) -> Option<IconRef
         channels: *channels,
         data,
     })
+}
+
+/// Whether an `image-data` buffer is what the spec allows (8 bits per
+/// sample; RGB, or RGBA when `has_alpha`) and holds every row it claims, so
+/// subscribers can index it by `rowstride` without reading past the end.
+fn raw_image_is_valid(
+    width: i32,
+    height: i32,
+    rowstride: i32,
+    has_alpha: bool,
+    bits_per_sample: i32,
+    channels: i32,
+    len: usize,
+) -> bool {
+    let expected_channels = if has_alpha { 4 } else { 3 };
+    if width <= 0 || height <= 0 || bits_per_sample != 8 || channels != expected_channels {
+        return false;
+    }
+    let (width, height, rowstride) = (width as usize, height as usize, rowstride.max(0) as usize);
+    let row = width * expected_channels as usize;
+    // The last row needs no padding.
+    rowstride >= row
+        && rowstride
+            .checked_mul(height - 1)
+            .and_then(|n| n.checked_add(row))
+            .is_some_and(|needed| len >= needed)
 }
 
 /// Icon from the `image-path` hint (spec 1.2) / `image_path` (spec 1.1,

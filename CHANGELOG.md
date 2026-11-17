@@ -25,5 +25,6 @@ All notable changes to this project are documented in this file.
 ### Security
 
 - The history database (`history.db`) is now readable by its owner only (mode 0600); it was created with the default umask, usually 0644, and holds notification text.
+- `image-data` icons are checked before they are passed on: 8 bits per sample, 3 channels (4 with alpha), a `rowstride` of at least one row, and enough bytes for every row. Anything else is ignored and the next icon source is used, so subscribers indexing the pixels by `rowstride` (as `docs/IPC.md` tells them to) cannot read past the end.
 
 ## [0.1.0] - 2026-09-04
