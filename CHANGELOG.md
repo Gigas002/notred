@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- `rusqlite` 0.41 → 0.43 (bundled SQLite via `libsqlite3-sys` 0.40), for the `history` feature.
 - libnotred: `Notification` and `ActivateEvent` gain a public `resident` field, so struct literals of them must set it.
 - libnotred: `Queue::set_paused` returns the ids it released; `Queue::is_held` and `HostState::set_paused` are new.
 - libnotred: new `HistoryStore::max_id` and `Queue::allocate_ids_after`.
