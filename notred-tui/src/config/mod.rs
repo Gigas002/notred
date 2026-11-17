@@ -14,13 +14,20 @@ pub struct FileConfig {
 
 impl FileConfig {
     pub fn load(explicit: Option<&Path>) -> Result<Self, std::io::Error> {
-        let path = explicit
-            .map(Path::to_path_buf)
-            .unwrap_or_else(Self::xdg_path);
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-        let text = std::fs::read_to_string(&path)?;
+        // A missing default file means defaults; a missing `--config` file
+        // is a mistake to report (as `notred --config` does).
+        let path = match explicit {
+            Some(path) => path.to_path_buf(),
+            None => {
+                let path = Self::xdg_path();
+                if !path.exists() {
+                    return Ok(Self::default());
+                }
+                path
+            }
+        };
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| std::io::Error::new(e.kind(), format!("{}: {e}", path.display())))?;
         toml::from_str(&text).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 
