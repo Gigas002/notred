@@ -89,10 +89,11 @@ levels, `cargo deny check`, `typos`, `cargo llvm-cov`.
 ## 7. Left open
 
 - **Avatar-heavy update stream (§3).** Options: send each icon once and refer
-  to it by id afterwards, or scale `image-data` down at ingestion. Either
-  changes what poshanka receives, so it belongs with poshanka's audit.
-- **poshanka's raw icon decoder** reads past the buffer for fewer than three
-  channels; notred no longer sends such icons, but poshanka should check too.
+  to it by id afterwards, or scale `image-data` down at ingestion. poshanka's
+  audit measured it: 50 ms of CPU for a 7 MB update with 20 large avatars,
+  so the protocol change isn't needed now.
+- **poshanka's raw icon decoder** read past the buffer for fewer than three
+  channels; fixed in poshanka's audit as well.
 - **Pause and hooks.** `on_notify` still runs for notifications held while
   paused (do not disturb); whether it should is a policy choice.
 - **`transient` and other hints** (`sound-file`, `suppress-sound`, `x`/`y`)
