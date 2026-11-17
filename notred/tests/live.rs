@@ -311,3 +311,29 @@ async fn config_mistakes_are_logged_and_a_broken_reload_is_refused() {
     notred.write_config("notred.toml", "[queue]\nmax_visible = 1\n");
     notred.client().await.reload().await.unwrap();
 }
+
+#[tokio::test]
+async fn a_malformed_request_gets_invalid_request_and_the_connection_stays() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let bus = bus_or_skip!();
+    let notred = common::Notred::start(&bus, "").await;
+    let stream = tokio::net::UnixStream::connect(notred.socket())
+        .await
+        .unwrap();
+    let (read, mut write) = stream.into_split();
+    let mut lines = BufReader::new(read).lines();
+    for bad in ["{\"v\":1,\"cmd\":\"dismis\",\"id\":1}\n", "not json\n"] {
+        write.write_all(bad.as_bytes()).await.unwrap();
+        let reply = lines.next_line().await.unwrap().expect("a reply");
+        assert!(
+            reply.contains("\"code\":\"INVALID_REQUEST\""),
+            "{bad} -> {reply}"
+        );
+    }
+    write
+        .write_all(b"{\"v\":1,\"cmd\":\"ping\"}\n")
+        .await
+        .unwrap();
+    let reply = lines.next_line().await.unwrap().unwrap();
+    assert_eq!(reply, r#"{"v":1,"type":"pong"}"#);
+}

@@ -20,6 +20,7 @@ All notable changes to this project are documented in this file.
 - **notred-tui shows the history when a notification carries an image.** Its list parser knew icon names and paths but not raw `image-data` icons (chat app avatars), so one such notification made the whole history fail to load.
 - **History kept across restarts (`flush = false`) is no longer overwritten.** Notification ids restart at 1 each run, and history rows are keyed by id, so new notifications replaced old entries one by one. New ids now continue after the highest id in the history.
 - **Config mistakes are reported.** Unknown keys (a typo such as `default_timeout`) were ignored without a word, and a missing or invalid override fragment was logged before logging was set up, so it never appeared, while every fragment was dropped. Both now show in the log. `notredctl reload` with a broken fragment fails and keeps the running config instead of reporting success.
+- A malformed IPC request now gets an `INVALID_REQUEST` reply and the connection stays open; outside `subscribe` notred hung up without an answer.
 
 ### Security
 
