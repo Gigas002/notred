@@ -12,7 +12,8 @@ fn load_examples_override_tree() {
     let config_path = examples_dir().join("config.toml");
     let file = FileConfig::load(Some(&config_path)).unwrap();
     let dir = config_path.parent().unwrap();
-    let policy = load_events_policy(&file.events, &file.paths.overrides, dir).unwrap();
+    let policy =
+        load_events_policy(&file.events, &file.paths.overrides, dir, &mut Vec::new()).unwrap();
     assert_eq!(policy.overrides.len(), 3);
 
     let app = policy
@@ -29,7 +30,8 @@ fn merge_per_app_button_left() {
     let mut file = FileConfig::load(Some(&config_path)).unwrap();
     file.events.on_button_left = Some(vec!["echo".into(), "root".into()]);
     let dir = config_path.parent().unwrap();
-    let policy = load_events_policy(&file.events, &file.paths.overrides, dir).unwrap();
+    let policy =
+        load_events_policy(&file.events, &file.paths.overrides, dir, &mut Vec::new()).unwrap();
 
     let app_hooks = libnotred::EventsHooks {
         on_button_left: Some(vec!["echo".into(), "app".into()]),

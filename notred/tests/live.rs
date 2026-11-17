@@ -288,3 +288,26 @@ async fn kept_history_survives_a_restart() {
     summaries.sort_unstable();
     assert_eq!(summaries, ["after restart", "before restart"]);
 }
+
+#[tokio::test]
+async fn config_mistakes_are_logged_and_a_broken_reload_is_refused() {
+    let bus = bus_or_skip!();
+    let notred = common::Notred::start(
+        &bus,
+        "[paths]\noverrides = [\"apps/missing/config.toml\"]\n[queue]\ndefault_timeout = 5000\n",
+    )
+    .await;
+    notred
+        .wait_for_log("unknown key `queue.default_timeout` ignored")
+        .await;
+    notred.wait_for_log("apps/missing/config.toml").await;
+
+    let err = notred.client().await.reload().await.unwrap_err();
+    assert!(
+        err.to_string().contains("apps/missing/config.toml"),
+        "{err}"
+    );
+    // A good config reloads.
+    notred.write_config("notred.toml", "[queue]\nmax_visible = 1\n");
+    notred.client().await.reload().await.unwrap();
+}

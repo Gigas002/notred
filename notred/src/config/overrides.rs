@@ -59,23 +59,24 @@ pub struct FragmentPaths {
 }
 
 impl FragmentConfig {
-    pub fn load(path: &Path) -> Result<Self, NotredBinError> {
-        let text = std::fs::read_to_string(path)
-            .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())))?;
-        toml::from_str(&text)
-            .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())))
+    /// Load a fragment; unused keys are added to `unknown` as messages.
+    pub fn load(path: &Path, unknown: &mut Vec<String>) -> Result<Self, NotredBinError> {
+        super::read_toml(path, unknown)
     }
 }
 
 /// Build runtime [`EventsPolicy`] from root config + override fragments on disk.
+///
+/// Keys the fragments don't use are added to `unknown` as messages.
 pub fn load_events_policy(
     base_events: &EventsConfig,
     override_paths: &[String],
     config_dir: &Path,
+    unknown: &mut Vec<String>,
 ) -> Result<EventsPolicy, NotredBinError> {
     let overrides = override_paths
         .iter()
-        .map(|rel| load_single_override(&config_dir.join(rel)))
+        .map(|rel| load_single_override(&config_dir.join(rel), unknown))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(EventsPolicy {
         base: base_events.to_hooks(),
@@ -83,8 +84,11 @@ pub fn load_events_policy(
     })
 }
 
-fn load_single_override(fragment_path: &Path) -> Result<LoadedEventOverride, NotredBinError> {
-    let config = FragmentConfig::load(fragment_path)?;
+fn load_single_override(
+    fragment_path: &Path,
+    unknown: &mut Vec<String>,
+) -> Result<LoadedEventOverride, NotredBinError> {
+    let config = FragmentConfig::load(fragment_path, unknown)?;
     let dir = fragment_path.parent().unwrap_or(Path::new(""));
 
     let kind = match config.override_meta.kind {
@@ -116,7 +120,7 @@ fn load_single_override(fragment_path: &Path) -> Result<LoadedEventOverride, Not
         .map(|p| p.overrides.as_slice())
         .unwrap_or(&[])
         .iter()
-        .map(|rel| load_single_override(&dir.join(rel)))
+        .map(|rel| load_single_override(&dir.join(rel), unknown))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(LoadedEventOverride {
