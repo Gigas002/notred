@@ -111,7 +111,8 @@ fn active_only_filter() {
 
 #[test]
 fn max_id_is_zero_when_empty_and_the_highest_id_otherwise() {
-    let store = HistoryStore::open(&temp_db("max_id"), true).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let store = HistoryStore::open(&dir.path().join("h.db"), false).unwrap();
     assert_eq!(store.max_id().unwrap(), 0);
     store.upsert_active(&sample(7, "a")).unwrap();
     store.upsert_active(&sample(3, "b")).unwrap();
