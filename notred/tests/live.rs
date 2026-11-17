@@ -184,3 +184,14 @@ async fn a_second_daemon_refuses_to_start() {
     // The first one keeps its socket.
     notred.client().await.ping().await.unwrap();
 }
+
+#[tokio::test]
+async fn sigterm_exits_cleanly_and_removes_the_socket() {
+    let bus = bus_or_skip!();
+    let mut notred = common::Notred::start(&bus, "").await;
+    let socket = notred.socket();
+    assert!(socket.exists());
+    let status = notred.terminate();
+    assert!(status.success(), "{status}:\n{}", notred.log());
+    assert!(!socket.exists(), "the socket is left behind");
+}
