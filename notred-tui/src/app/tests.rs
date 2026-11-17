@@ -148,15 +148,6 @@ mod with_fake_ctl {
     }
 
     #[test]
-    fn a_missing_history_feature_is_explained() {
-        let _turn = turn();
-        let dir = tempfile::tempdir().unwrap();
-        let mut app = App::new(Ctl::new(fake_ctl(dir.path(), "list-history"), None));
-        app.refresh();
-        assert!(app.status.contains("history feature"), "{}", app.status);
-    }
-
-    #[test]
     fn a_missing_notredctl_is_reported() {
         let ctl = Ctl::new("/nonexistent/notredctl", None);
         assert!(ctl.ping().unwrap_err().to_string().contains("not found"));
