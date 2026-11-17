@@ -140,20 +140,28 @@ impl Queue {
         self.inner.read().await.paused
     }
 
-    /// Pause or unpause ingestion. Unpausing moves held notifications active and
-    /// broadcasts one change event.
-    pub async fn set_paused(&self, paused: bool) {
+    /// Pause or unpause ingestion. Unpausing moves held notifications active,
+    /// broadcasts one change event, and returns the ids it released.
+    pub async fn set_paused(&self, paused: bool) -> Vec<u32> {
         let mut inner = self.inner.write().await;
         if inner.paused == paused {
-            return;
+            return vec![];
         }
         inner.paused = paused;
-        if !paused && !inner.held.is_empty() {
-            let held = std::mem::take(&mut inner.held);
-            inner.items.extend(held);
-            drop(inner);
-            let _ = self.change_tx.send(());
+        if paused || inner.held.is_empty() {
+            return vec![];
         }
+        let held = std::mem::take(&mut inner.held);
+        let released = held.iter().map(|n| n.id).collect();
+        inner.items.extend(held);
+        drop(inner);
+        let _ = self.change_tx.send(());
+        released
+    }
+
+    /// Whether `id` is held back by [`Queue::set_paused`] (not yet visible).
+    pub async fn is_held(&self, id: u32) -> bool {
+        find_by_id(&self.inner.read().await.held, id).is_some()
     }
 
     /// Lookup an active or held notification by id.

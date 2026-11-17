@@ -246,3 +246,22 @@ async fn an_invoked_action_closes_the_notification_unless_resident() {
     assert_eq!(signals.next_within(Duration::from_millis(300)).await, None);
     assert_eq!(active_ids(&notred).await, vec![id]);
 }
+
+#[tokio::test]
+async fn paused_notifications_keep_their_timeout_until_shown() {
+    let bus = bus_or_skip!();
+    let notred = common::Notred::start(&bus, "").await;
+    let conn = bus.connect().await;
+    notred.client().await.pause().await.unwrap();
+    let id = Notify {
+        timeout: 200,
+        ..Notify::new("while away")
+    }
+    .send(&conn)
+    .await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    notred.client().await.unpause().await.unwrap();
+    assert_eq!(active_ids(&notred).await, vec![id]);
+    let mut signals = Signals::new(&conn).await;
+    assert_eq!(signals.next().await, Signal::Closed { id, reason: 1 });
+}

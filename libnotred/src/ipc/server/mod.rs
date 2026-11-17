@@ -198,11 +198,11 @@ where
             }
         },
         Cmd::Pause => {
-            ctx.state.queue.set_paused(true).await;
+            ctx.state.set_paused(true).await;
             codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
         }
         Cmd::Unpause => {
-            ctx.state.queue.set_paused(false).await;
+            ctx.state.set_paused(false).await;
             codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
         }
         Cmd::ListHistory {

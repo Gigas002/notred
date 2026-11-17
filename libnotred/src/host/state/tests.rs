@@ -188,6 +188,28 @@ mod input_tests {
         assert_eq!(queue.len().await, 1);
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn held_notifications_expire_only_after_unpause() {
+        let queue = Arc::new(Queue::new());
+        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        state.set_paused(true).await;
+        let id = state
+            .push_notification(Notification {
+                timeout_ms: 1000,
+                ..notif(false)
+            })
+            .await;
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        assert!(queue.get(id).await.is_some(), "expired while held");
+
+        state.set_paused(false).await;
+        assert_eq!(queue.len().await, 1);
+        tokio::time::sleep(std::time::Duration::from_millis(900)).await;
+        assert_eq!(queue.len().await, 1, "the full timeout runs after unpause");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(queue.is_empty().await);
+    }
+
     #[test]
     fn event_kind_parse_and_hook() {
         assert_eq!(EventKind::parse("button_left"), Some(EventKind::ButtonLeft));

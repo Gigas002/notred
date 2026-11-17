@@ -159,14 +159,32 @@ impl HostState {
         let cfg = self.config.read().await.clone();
         let id = self.queue.push(notif.clone()).await;
         notif.id = id;
-        self.timeouts
-            .schedule(id, notif.timeout_ms, cfg.default_timeout_ms)
-            .await;
+        // A held notification's timeout starts when unpausing shows it.
+        if self.queue.is_held(id).await {
+            self.timeouts.cancel(id).await;
+        } else {
+            self.timeouts
+                .schedule(id, notif.timeout_ms, cfg.default_timeout_ms)
+                .await;
+        }
         let hooks = cfg.events.resolve(&notif.app_id, notif.urgency);
         crate::spawn::spawn_on_notify(&hooks, &notif);
         #[cfg(feature = "history")]
         self.record_notify(&notif).await;
         id
+    }
+
+    /// Pause or unpause; unpausing starts the timeouts of the notifications
+    /// it shows, which did not run while they were held.
+    pub async fn set_paused(&self, paused: bool) {
+        let default_timeout_ms = self.config.read().await.default_timeout_ms;
+        for id in self.queue.set_paused(paused).await {
+            if let Some(notif) = self.queue.get(id).await {
+                self.timeouts
+                    .schedule(id, notif.timeout_ms, default_timeout_ms)
+                    .await;
+            }
+        }
     }
 
     pub fn subscribe_activates(&self) -> broadcast::Receiver<ActivateEvent> {
