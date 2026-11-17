@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 - libnotred: `Notification` and `ActivateEvent` gain a public `resident` field, so struct literals of them must set it.
 - libnotred: `Queue::set_paused` returns the ids it released; `Queue::is_held` and `HostState::set_paused` are new.
 - libnotred: new `HistoryStore::max_id` and `Queue::allocate_ids_after`.
+- libnotred: `ActivateEvent` gains a public `summary` field.
 
 ### Fixed
 
@@ -23,6 +24,7 @@ All notable changes to this project are documented in this file.
 - A malformed IPC request now gets an `INVALID_REQUEST` reply and the connection stays open; outside `subscribe` notred hung up without an answer.
 - `notred-tui --ctl` overrides `ctl` in `tui.toml`; the config file used to win over the command line.
 - `notred-tui --config <file>` with a file that does not exist is an error instead of silently using defaults.
+- The `on_action` hook gets `NOTRED_SUMMARY` like the other hooks; the example config lists it, but it was missing.
 
 ### Security
 

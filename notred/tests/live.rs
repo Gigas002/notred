@@ -337,3 +337,33 @@ async fn a_malformed_request_gets_invalid_request_and_the_connection_stays() {
     let reply = lines.next_line().await.unwrap().unwrap();
     assert_eq!(reply, r#"{"v":1,"type":"pong"}"#);
 }
+
+#[tokio::test]
+async fn on_action_hook_gets_the_key_and_summary() {
+    let bus = bus_or_skip!();
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("action.txt");
+    let notred = common::Notred::start(
+        &bus,
+        &format!(
+            "[events]\non_action = [\"sh\", \"-c\", \"echo $NOTRED_ACTION_KEY:$NOTRED_SUMMARY > {}\"]\n",
+            out.display()
+        ),
+    )
+    .await;
+    let conn = bus.connect().await;
+    let id = Notify {
+        actions: &["reply", "Reply"],
+        ..Notify::new("ping from bob")
+    }
+    .send(&conn)
+    .await;
+    notred
+        .client()
+        .await
+        .activate(id, Some("reply"))
+        .await
+        .unwrap();
+    let text = common::wait_for("the hook", || std::fs::read_to_string(&out).ok());
+    assert_eq!(text, "reply:ping from bob\n");
+}

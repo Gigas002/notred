@@ -10,6 +10,7 @@ fn spawn_on_action_no_hook_is_noop() {
         id: 1,
         key: "default".into(),
         app_id: "app".into(),
+        summary: "hi".into(),
         urgency: Urgency::Normal,
         resident: false,
     };

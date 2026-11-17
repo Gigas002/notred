@@ -69,6 +69,8 @@ pub struct ActivateEvent {
     pub id: u32,
     pub key: String,
     pub app_id: String,
+    /// The notification's summary, for the hook's `NOTRED_SUMMARY`.
+    pub summary: String,
     pub urgency: crate::wire::Urgency,
     /// The notification's `resident` hint: keep it open after the action.
     pub resident: bool,
@@ -299,6 +301,7 @@ impl HostState {
             id,
             key,
             app_id: notif.app_id,
+            summary: notif.summary,
             urgency: notif.urgency,
             resident: notif.resident,
         };
