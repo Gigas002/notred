@@ -69,6 +69,7 @@ impl Notifications {
             category,
             desktop_entry,
             body_markup,
+            resident: bool_hint(&hints, "resident"),
         };
 
         let id = self.state.push_notification(notif).await;
@@ -160,6 +161,17 @@ fn value_from_hints(hints: &HashMap<String, OwnedVariant>) -> Option<i32> {
             }
         })
         .filter(|n| (0..=100).contains(n))
+}
+
+/// Boolean hint lookup (`resident`, …); absent or another type is `false`.
+fn bool_hint(hints: &HashMap<String, OwnedVariant>, key: &str) -> bool {
+    use std::ops::Deref;
+    use zbus::Variant;
+
+    matches!(
+        hints.get(key).map(|ov| ov.deref()),
+        Some(Variant::Bool(true))
+    )
 }
 
 /// String-valued hint lookup (`category`, `desktop-entry`, …).

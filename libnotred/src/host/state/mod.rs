@@ -70,6 +70,8 @@ pub struct ActivateEvent {
     pub key: String,
     pub app_id: String,
     pub urgency: crate::wire::Urgency,
+    /// The notification's `resident` hint: keep it open after the action.
+    pub resident: bool,
 }
 
 /// Errors from [`HostState::activate`].
@@ -280,6 +282,7 @@ impl HostState {
             key,
             app_id: notif.app_id,
             urgency: notif.urgency,
+            resident: notif.resident,
         };
         let _ = self.activate_tx.send(ev);
         Ok(())

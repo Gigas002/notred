@@ -25,6 +25,7 @@ mod host_history_tests {
             category: None,
             desktop_entry: None,
             body_markup: false,
+            resident: false,
         }
     }
 
@@ -91,6 +92,7 @@ mod input_tests {
             category: None,
             desktop_entry: None,
             body_markup: false,
+            resident: false,
         }
     }
 

@@ -198,6 +198,12 @@ async fn emit_signals_task(
                         {
                             tracing::warn!(%e, id = ev.id, "failed to emit ActionInvoked");
                         }
+                        // The spec: an invoked action removes the notification
+                        // unless it set the `resident` hint. After ActionInvoked,
+                        // so the sender sees the action before the close.
+                        if !ev.resident {
+                            state.queue.close(ev.id, CloseReason::DismissedByUser).await;
+                        }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
                         tracing::warn!(n, "activate signal task lagged");

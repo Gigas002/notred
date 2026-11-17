@@ -214,3 +214,35 @@ async fn clicking_without_a_default_action_dismisses() {
     assert_eq!(signals.next().await, Signal::Closed { id, reason: 2 });
     assert!(active_ids(&notred).await.is_empty());
 }
+
+#[tokio::test]
+async fn an_invoked_action_closes_the_notification_unless_resident() {
+    let bus = bus_or_skip!();
+    let notred = common::Notred::start(&bus, "").await;
+    let conn = bus.connect().await;
+    let mut signals = Signals::new(&conn).await;
+
+    let id = Notify {
+        actions: &["default", "Open"],
+        ..Notify::new("open me")
+    }
+    .send(&conn)
+    .await;
+    notred.client().await.activate(id, None).await.unwrap();
+    let key = "default".to_owned();
+    assert_eq!(signals.next().await, Signal::Action { id, key });
+    assert_eq!(signals.next().await, Signal::Closed { id, reason: 2 });
+    assert!(active_ids(&notred).await.is_empty());
+
+    let mut notify = Notify {
+        actions: &["default", "Open"],
+        ..Notify::new("resident")
+    };
+    notify.hints.insert("resident", zbus::Variant::Bool(true));
+    let id = notify.send(&conn).await;
+    notred.client().await.activate(id, None).await.unwrap();
+    let key = "default".to_owned();
+    assert_eq!(signals.next().await, Signal::Action { id, key });
+    assert_eq!(signals.next_within(Duration::from_millis(300)).await, None);
+    assert_eq!(active_ids(&notred).await, vec![id]);
+}

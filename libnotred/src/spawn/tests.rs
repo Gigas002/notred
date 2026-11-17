@@ -11,6 +11,7 @@ fn spawn_on_action_no_hook_is_noop() {
         key: "default".into(),
         app_id: "app".into(),
         urgency: Urgency::Normal,
+        resident: false,
     };
     spawn_on_action(&cfg, &ev);
 }

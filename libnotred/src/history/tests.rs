@@ -19,6 +19,7 @@ fn sample(id: u32, summary: &str) -> Notification {
         category: None,
         desktop_entry: None,
         body_markup: false,
+        resident: false,
     }
 }
 

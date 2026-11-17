@@ -23,6 +23,7 @@ fn notif() -> Notification {
         category: None,
         desktop_entry: None,
         body_markup: false,
+        resident: false,
     }
 }
 
