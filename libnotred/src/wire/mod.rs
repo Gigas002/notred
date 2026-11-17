@@ -18,7 +18,7 @@ impl Request {
     }
 }
 
-/// Phase 0+ commands (`docs/PLAN.md` §4.1).
+/// Request commands (`docs/IPC.md`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
 pub enum Cmd {

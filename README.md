@@ -43,4 +43,8 @@ notredctl list-history      # requires history feature + [history] enabled
 notredctl remove <id>       # requires history feature + [history] enabled
 ```
 
+`list-history`, `remove` and **`notred-tui`** need notred and notredctl built with the `history` feature (`cargo build --release --features notred/history,notredctl/history`) and `[history] enabled = true` in `notred.toml`; a default build has no history.
+
+Config mistakes (unknown keys, override fragments that can't be loaded) are logged as warnings when notred starts; `notredctl reload` fails on a broken fragment and keeps the running config.
+
 Run `notredctl --help` for flags. **Do not** open `notred.sock` from application code — wrap `notredctl` or shell scripts instead.

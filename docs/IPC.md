@@ -1,4 +1,4 @@
-# notred IPC v1 (Phase 3)
+# notred IPC v1
 
 ## Transport
 
@@ -8,10 +8,10 @@
 
 ## Audience
 
-- **Integrators:** use **`notredctl`** (`notredctl --help`, JSON on stdout) — see [`PLAN.md`](PLAN.md) §4.6.
+- **Integrators:** use **`notredctl`** (`notredctl --help`, JSON on stdout).
 - **Implementors:** this document + `examples/ipc-examples/*.jsonl` golden fixtures.
 
-Phase 3 adds **`list_history`** and **`remove`** plus the **`history_changed`** subscribe event (`history` Cargo feature + `[history] enabled` at runtime).
+**`list_history`**, **`remove`** and the **`history_changed`** subscribe event need the `history` Cargo feature and `[history] enabled = true`.
 
 ---
 
@@ -57,6 +57,15 @@ When `"key"` is omitted, the server runs the **`"default"`** action; a
 notification without one is dismissed instead (`NotificationClosed` reason 2),
 as a click on a notification without actions is. An explicit `"key"` the
 notification doesn't offer is `INVALID_REQUEST`.
+
+After the action is invoked (D-Bus `ActionInvoked`), the notification is
+closed (`NotificationClosed` reason 2) unless the sender set the FDN
+`resident` hint.
+
+### Malformed requests
+
+A line that isn't a valid request gets an `INVALID_REQUEST` error response;
+the connection stays open.
 
 ### History availability
 
@@ -141,7 +150,7 @@ Same core fields as `MinimalNotification`, plus:
 | `examples/ipc-examples/remove.jsonl`         | `remove`        |
 | `examples/ipc-examples/input.jsonl`          | `input`         |
 
-See also Phase 0–2 fixtures (`ping`, `list`, `subscribe`, `activate`, `reload`, `pause`).
+More fixtures: `ping`, `list`, `subscribe`, `activate`, `reload`, `pause`.
 
 ---
 

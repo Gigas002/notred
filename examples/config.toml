@@ -19,8 +19,10 @@ overrides = [
 [notifications]
 # body_markup = true   # advertise FDN "body-markup" capability; tags MinimalNotification.body_markup
 
-# Global event hooks. Each key is optional; fragments override per-key (see docs/PLAN.md §5.2).
-# Env: NOTRED_ID, NOTRED_APP_ID, NOTRED_EVENT_KIND, NOTRED_ACTION_KEY, NOTRED_SUMMARY, …
+# Global event hooks. Each key is optional. Override fragments replace single
+# keys, applied in this order: global urgency, app, then the app's urgency.
+# Env for every hook: NOTRED_ID, NOTRED_APP_ID, NOTRED_SUMMARY, NOTRED_EVENT_KIND;
+# on_action also gets NOTRED_ACTION_KEY.
 [events]
 # on_button_left   = ["sh", "-c", "echo default left $NOTRED_ID"]
 # on_button_middle = ["sh", "-c", "echo default middle"]
