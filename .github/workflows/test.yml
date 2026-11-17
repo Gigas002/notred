@@ -6,6 +6,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # notred/tests/live.rs: fail instead of skipping when dbus-daemon is missing
+  NOTRED_LIVE_TESTS: "1"
 
 permissions:
   contents: read
@@ -26,6 +28,8 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
+      - name: Install dbus-daemon for the live tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends dbus-daemon
       - name: Run tests (default features)
         run: cargo test --workspace --verbose
       - name: Run tests (--all-features)

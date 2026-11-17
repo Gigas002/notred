@@ -219,6 +219,7 @@ Use the **`tracing`** ecosystem for structured logging.
 
 - Place cross-module and end-to-end tests in `<crate>/tests/`.
 - Use temporary directories and fixtures from `examples/` where applicable.
+- `notred/tests/live.rs` runs the real daemon on a private `dbus-daemon` session bus with its own runtime, config and cache directories, so it never touches the desktop's notification daemon. Without `dbus-daemon` those tests are skipped; `NOTRED_LIVE_TESTS=1` (set in CI) makes that a failure.
 
 ### 6.3 Coverage expectations
 

@@ -26,3 +26,8 @@ tracing-subscriber = { workspace = true }
 [features]
 default = []
 history = ["libnotred/history"]
+
+[dev-dependencies]
+# Live tests: a private session bus to send Notify on, and temp dirs.
+tempfile = "3"
+zbus = { workspace = true }
