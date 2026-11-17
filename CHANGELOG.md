@@ -26,6 +26,7 @@ All notable changes to this project are documented in this file.
 - `notred-tui --config <file>` with a file that does not exist is an error instead of silently using defaults.
 - The `on_action` hook gets `NOTRED_SUMMARY` like the other hooks; the example config lists it, but it was missing.
 - **An override fragment that includes itself no longer crashes notred** with a stack overflow at start-up; it is reported as a config mistake.
+- `notredctl list` and `ping` show the daemon's error message instead of "unexpected IPC response".
 
 ### Security
 

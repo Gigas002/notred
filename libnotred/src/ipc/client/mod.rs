@@ -28,6 +28,7 @@ impl Client {
         codec::write_request(&mut self.write, &Request::new(Cmd::Ping)).await?;
         match codec::read_response(&mut self.reader).await? {
             Some(Response::Ok(ok)) if ok.payload == OkPayload::Pong => Ok(()),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
             _ => Err(IpcError::UnexpectedResponse("ping")),
         }
     }
@@ -39,7 +40,8 @@ impl Client {
                 OkPayload::Items { items } => Ok(items),
                 _ => Err(IpcError::UnexpectedResponse("list payload")),
             },
-            _ => Err(IpcError::UnexpectedResponse("list")),
+            Some(Response::Err(e)) => Err(IpcError::ServerError(e.error.message)),
+            None => Err(IpcError::UnexpectedResponse("list")),
         }
     }
 
@@ -180,3 +182,6 @@ impl Client {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;
