@@ -21,6 +21,7 @@ All notable changes to this project are documented in this file.
 - **History kept across restarts (`flush = false`) is no longer overwritten.** Notification ids restart at 1 each run, and history rows are keyed by id, so new notifications replaced old entries one by one. New ids now continue after the highest id in the history.
 - **Config mistakes are reported.** Unknown keys (a typo such as `default_timeout`) were ignored without a word, and a missing or invalid override fragment was logged before logging was set up, so it never appeared, while every fragment was dropped. Both now show in the log. `notredctl reload` with a broken fragment fails and keeps the running config instead of reporting success.
 - A malformed IPC request now gets an `INVALID_REQUEST` reply and the connection stays open; outside `subscribe` notred hung up without an answer.
+- `notred-tui --ctl` overrides `ctl` in `tui.toml`; the config file used to win over the command line.
 
 ### Security
 
