@@ -700,6 +700,7 @@ dependencies = [
  "clap",
  "libnotred",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
