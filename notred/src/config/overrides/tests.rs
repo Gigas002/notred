@@ -61,3 +61,54 @@ fn merge_per_app_button_left() {
         Some(vec!["echo".into(), "root".into()])
     );
 }
+
+#[test]
+fn a_fragment_that_includes_itself_is_an_error_not_a_crash() {
+    let dir = tempfile::tempdir().unwrap();
+    let frag = dir.path().join("apps/loop/config.toml");
+    std::fs::create_dir_all(frag.parent().unwrap()).unwrap();
+    std::fs::write(
+        &frag,
+        "[override]\ntype = \"app\"\nname = \"x\"\n[paths]\noverrides = [\"../loop/config.toml\"]\n",
+    )
+    .unwrap();
+    let err = load_events_policy(
+        &Default::default(),
+        &["apps/loop/config.toml".into()],
+        dir.path(),
+        &mut Vec::new(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("includes itself"), "{err}");
+}
+
+#[test]
+fn the_same_fragment_may_appear_in_two_branches() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let p = dir.path().join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, text).unwrap();
+    };
+    write(
+        "u/low.toml",
+        "[override]\ntype = \"urgency\"\nlevel = \"low\"\n",
+    );
+    for app in ["a", "b"] {
+        write(
+            &format!("apps/{app}.toml"),
+            &format!(
+                "[override]\ntype = \"app\"\nname = \"{app}\"\n[paths]\noverrides = [\"../u/low.toml\"]\n"
+            ),
+        );
+    }
+    let policy = load_events_policy(
+        &Default::default(),
+        &["apps/a.toml".into(), "apps/b.toml".into()],
+        dir.path(),
+        &mut Vec::new(),
+    )
+    .unwrap();
+    assert_eq!(policy.overrides.len(), 2);
+}

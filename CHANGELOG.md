@@ -25,6 +25,7 @@ All notable changes to this project are documented in this file.
 - `notred-tui --ctl` overrides `ctl` in `tui.toml`; the config file used to win over the command line.
 - `notred-tui --config <file>` with a file that does not exist is an error instead of silently using defaults.
 - The `on_action` hook gets `NOTRED_SUMMARY` like the other hooks; the example config lists it, but it was missing.
+- **An override fragment that includes itself no longer crashes notred** with a stack overflow at start-up; it is reported as a config mistake.
 
 ### Security
 

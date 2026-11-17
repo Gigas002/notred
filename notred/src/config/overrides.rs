@@ -76,7 +76,7 @@ pub fn load_events_policy(
 ) -> Result<EventsPolicy, NotredBinError> {
     let overrides = override_paths
         .iter()
-        .map(|rel| load_single_override(&config_dir.join(rel), unknown))
+        .map(|rel| load_single_override(&config_dir.join(rel), unknown, &mut Vec::new()))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(EventsPolicy {
         base: base_events.to_hooks(),
@@ -84,10 +84,20 @@ pub fn load_events_policy(
     })
 }
 
+/// `chain` holds the fragments that include this one, to stop include cycles
+/// (which would otherwise recurse until the stack overflows).
 fn load_single_override(
     fragment_path: &Path,
     unknown: &mut Vec<String>,
+    chain: &mut Vec<std::path::PathBuf>,
 ) -> Result<LoadedEventOverride, NotredBinError> {
+    let id = std::fs::canonicalize(fragment_path).unwrap_or_else(|_| fragment_path.to_path_buf());
+    if chain.contains(&id) {
+        return Err(NotredBinError::Config(format!(
+            "{}: includes itself (via [paths].overrides)",
+            fragment_path.display()
+        )));
+    }
     let config = FragmentConfig::load(fragment_path, unknown)?;
     let dir = fragment_path.parent().unwrap_or(Path::new(""));
 
@@ -120,7 +130,12 @@ fn load_single_override(
         .map(|p| p.overrides.as_slice())
         .unwrap_or(&[])
         .iter()
-        .map(|rel| load_single_override(&dir.join(rel), unknown))
+        .map(|rel| {
+            chain.push(id.clone());
+            let nested = load_single_override(&dir.join(rel), unknown, chain);
+            chain.pop();
+            nested
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(LoadedEventOverride {
