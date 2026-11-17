@@ -195,3 +195,22 @@ async fn sigterm_exits_cleanly_and_removes_the_socket() {
     assert!(status.success(), "{status}:\n{}", notred.log());
     assert!(!socket.exists(), "the socket is left behind");
 }
+
+#[tokio::test]
+async fn clicking_without_a_default_action_dismisses() {
+    // Chat apps often offer only named actions (e.g. "reply"). poshanka's
+    // left click is `activate <id>` with no key.
+    let bus = bus_or_skip!();
+    let notred = common::Notred::start(&bus, "").await;
+    let conn = bus.connect().await;
+    let mut signals = Signals::new(&conn).await;
+    let id = Notify {
+        actions: &["reply", "Reply"],
+        ..Notify::new("chat")
+    }
+    .send(&conn)
+    .await;
+    notred.client().await.activate(id, None).await.unwrap();
+    assert_eq!(signals.next().await, Signal::Closed { id, reason: 2 });
+    assert!(active_ids(&notred).await.is_empty());
+}

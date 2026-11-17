@@ -42,7 +42,7 @@ Subscribers (e.g. poshanka) report pointer gestures with **`event_kind`** — no
 
 | `event_kind`     | `[events]` hook      | Default when hook absent |
 | ---------------- | -------------------- | ------------------------ |
-| `button_left`    | `on_button_left`     | no actions → dismiss; has actions → `activate` default key |
+| `button_left`    | `on_button_left`     | has a `"default"` action → `activate` it; otherwise dismiss |
 | `button_middle`  | `on_button_middle`   | dismiss |
 | `button_right`   | `on_button_right`    | dismiss |
 | `touch`          | `on_touch`           | same as `button_left` |
@@ -53,7 +53,10 @@ When a configured hook exists for the kind, **only** the shell hook runs (no aut
 
 ### `activate` action keys
 
-When `"key"` is omitted, the server uses **`"default"`**.
+When `"key"` is omitted, the server runs the **`"default"`** action; a
+notification without one is dismissed instead (`NotificationClosed` reason 2),
+as a click on a notification without actions is. An explicit `"key"` the
+notification doesn't offer is `INVALID_REQUEST`.
 
 ### History availability
 

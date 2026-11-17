@@ -250,9 +250,22 @@ impl HostState {
     }
 
     /// Resolve action key and enqueue activation (D-Bus signal + optional shell).
+    ///
+    /// Without a `key`, the `"default"` action runs if the notification has
+    /// one; otherwise there is nothing to invoke and it is dismissed, as a
+    /// click on a notification without actions is.
     pub async fn activate(&self, id: u32, key: Option<String>) -> Result<(), ActivateError> {
-        let key = key.unwrap_or_else(|| "default".into());
         let notif = self.queue.get(id).await.ok_or(ActivateError::NotFound)?;
+        let key = match key {
+            Some(key) => key,
+            None if notif.action_keys.iter().any(|k| k == "default") => "default".into(),
+            None => {
+                self.queue
+                    .close(id, crate::model::CloseReason::DismissedByUser)
+                    .await;
+                return Ok(());
+            }
+        };
 
         if !notif.has_actions && key != "default" {
             return Err(ActivateError::InvalidActionKey { key });
@@ -288,19 +301,12 @@ impl HostState {
         }
 
         match kind {
+            // Runs the default action, or dismisses when there is none.
             EventKind::ButtonLeft | EventKind::Touch => {
-                if notif.has_actions {
-                    self.activate(id, None).await.map_err(|e| match e {
-                        ActivateError::NotFound => InputError::NotFound,
-                        ActivateError::InvalidActionKey { key } => {
-                            InputError::InvalidActionKey { key }
-                        }
-                    })?;
-                } else {
-                    self.queue
-                        .close(id, crate::model::CloseReason::DismissedByUser)
-                        .await;
-                }
+                self.activate(id, None).await.map_err(|e| match e {
+                    ActivateError::NotFound => InputError::NotFound,
+                    ActivateError::InvalidActionKey { key } => InputError::InvalidActionKey { key },
+                })?;
             }
             EventKind::ButtonMiddle | EventKind::ButtonRight => {
                 self.queue

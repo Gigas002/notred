@@ -146,6 +146,46 @@ mod input_tests {
         assert_eq!(ev.key, "default");
     }
 
+    fn notif_with_actions(keys: &[&str]) -> Notification {
+        Notification {
+            action_keys: keys.iter().map(|k| (*k).to_owned()).collect(),
+            has_actions: true,
+            ..notif(true)
+        }
+    }
+
+    #[tokio::test]
+    async fn button_left_without_a_default_action_dismisses() {
+        let queue = Arc::new(Queue::new());
+        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        let mut rx = state.subscribe_activates();
+        let id = queue.push(notif_with_actions(&["reply"])).await;
+        state.handle_input(id, "button_left").await.unwrap();
+        assert!(queue.is_empty().await);
+        assert!(rx.try_recv().is_err(), "no action to invoke");
+    }
+
+    #[tokio::test]
+    async fn activate_without_a_key_and_no_default_action_dismisses() {
+        let queue = Arc::new(Queue::new());
+        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        let id = queue.push(notif_with_actions(&["reply"])).await;
+        state.activate(id, None).await.unwrap();
+        assert!(queue.is_empty().await);
+    }
+
+    #[tokio::test]
+    async fn activate_with_an_unknown_key_is_still_an_error() {
+        let queue = Arc::new(Queue::new());
+        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        let id = queue.push(notif_with_actions(&["reply"])).await;
+        assert!(matches!(
+            state.activate(id, Some("default".into())).await,
+            Err(super::super::ActivateError::InvalidActionKey { .. })
+        ));
+        assert_eq!(queue.len().await, 1);
+    }
+
     #[test]
     fn event_kind_parse_and_hook() {
         assert_eq!(EventKind::parse("button_left"), Some(EventKind::ButtonLeft));
