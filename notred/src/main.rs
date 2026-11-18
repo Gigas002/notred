@@ -28,6 +28,9 @@ async fn main() -> ExitCode {
 
     let settings = resolve(&cli, file);
     logger::init(&settings.log_filter);
+    for problem in &settings.problems {
+        tracing::warn!("{problem}");
+    }
 
     match app::run(cli.command, &settings).await {
         Ok(()) => ExitCode::SUCCESS,

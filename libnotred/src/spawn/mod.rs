@@ -41,6 +41,7 @@ pub fn spawn_on_action(config: &RuntimeConfig, ev: &ActivateEvent) {
     env.insert("NOTRED_ID".into(), ev.id.to_string());
     env.insert("NOTRED_ACTION_KEY".into(), ev.key.clone());
     env.insert("NOTRED_APP_ID".into(), ev.app_id.clone());
+    env.insert("NOTRED_SUMMARY".into(), ev.summary.clone());
     env.insert("NOTRED_EVENT_KIND".into(), "action".into());
     spawn_hook(hooks.on_action.clone(), env);
 }

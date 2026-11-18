@@ -73,9 +73,17 @@ async fn handle_connection(
     let mut reader = BufReader::new(read);
 
     loop {
-        let req = match codec::read_request(&mut reader).await? {
-            Some(r) => r,
-            None => return Ok(()),
+        let req = match codec::read_request(&mut reader).await {
+            Ok(Some(r)) => r,
+            Ok(None) => return Ok(()),
+            // Not a valid request: say so and keep the connection, as in
+            // subscribe mode, rather than hanging up without an answer.
+            Err(IpcError::Json(e)) => {
+                let resp = Response::err(ErrorCode::InvalidRequest, e.to_string());
+                codec::write_response(&mut write, &resp).await?;
+                continue;
+            }
+            Err(e) => return Err(e),
         };
 
         if !dispatch(&mut reader, &mut write, req, &state, reload.as_deref()).await? {
@@ -198,11 +206,11 @@ where
             }
         },
         Cmd::Pause => {
-            ctx.state.queue.set_paused(true).await;
+            ctx.state.set_paused(true).await;
             codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
         }
         Cmd::Unpause => {
-            ctx.state.queue.set_paused(false).await;
+            ctx.state.set_paused(false).await;
             codec::write_response(write, &Response::ok(OkPayload::Ok)).await?;
         }
         Cmd::ListHistory {

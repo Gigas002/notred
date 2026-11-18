@@ -25,6 +25,26 @@ pub async fn run(settings: &Settings) -> Result<(), NotredBinError> {
         reload,
     };
     let host = NotredHost::new(host_config);
-    host.run().await?;
+    host.run_until(shutdown_signal()).await?;
     Ok(())
+}
+
+/// Completes on SIGTERM (e.g. `systemctl --user stop`) or SIGINT (Ctrl+C).
+async fn shutdown_signal() {
+    use tokio::signal::unix::{SignalKind, signal};
+    match (
+        signal(SignalKind::terminate()),
+        signal(SignalKind::interrupt()),
+    ) {
+        (Ok(mut term), Ok(mut int)) => {
+            tokio::select! {
+                _ = term.recv() => {}
+                _ = int.recv() => {}
+            }
+        }
+        (Err(e), _) | (_, Err(e)) => {
+            tracing::warn!(%e, "can't listen for SIGTERM/SIGINT; stop notred with SIGKILL");
+            std::future::pending::<()>().await;
+        }
+    }
 }

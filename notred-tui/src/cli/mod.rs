@@ -9,9 +9,9 @@ use clap::Parser;
     about = "Terminal notification manager for notred (uses notredctl only)"
 )]
 pub struct Cli {
-    /// Path to `notredctl` (default: search `$PATH`).
-    #[arg(long, default_value = "notredctl")]
-    pub ctl: PathBuf,
+    /// Path to `notredctl` (default: `ctl` in tui.toml, else search `$PATH`).
+    #[arg(long)]
+    pub ctl: Option<PathBuf>,
 
     /// Unix socket path passed through to `notredctl --socket`.
     #[arg(long)]

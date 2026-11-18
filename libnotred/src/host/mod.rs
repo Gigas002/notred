@@ -64,8 +64,17 @@ impl NotredHost {
         Self { config }
     }
 
-    /// Run the host until an error or signal.
+    /// Run the host until an error.
     pub async fn run(&self) -> Result<(), HostError> {
+        self.run_until(std::future::pending()).await
+    }
+
+    /// Run the host until an error or until `shutdown` completes; then remove
+    /// the IPC socket and return `Ok`.
+    pub async fn run_until(
+        &self,
+        shutdown: impl std::future::Future<Output = ()>,
+    ) -> Result<(), HostError> {
         let queue = Arc::new(Queue::new());
         queue.set_max_visible(self.config.runtime.max_visible).await;
         let state = HostState::new(self.config.runtime.clone(), Arc::clone(&queue));
@@ -74,6 +83,12 @@ impl NotredHost {
         if self.config.runtime.history.enabled {
             match HistoryStore::open(&self.config.history_path, self.config.runtime.history.flush) {
                 Ok(store) => {
+                    // Ids restart at 1 each run; a kept history must not get
+                    // its rows overwritten by new notifications reusing them.
+                    match store.max_id() {
+                        Ok(max) => queue.allocate_ids_after(max).await,
+                        Err(e) => tracing::warn!(%e, "can't read history ids"),
+                    }
                     state
                         .init_history(Arc::new(store), &self.config.runtime.history)
                         .await;
@@ -123,14 +138,16 @@ impl NotredHost {
 
         let server = Server::new(&self.config.socket_path, state, self.config.reload.clone());
 
-        tokio::select! {
-            result = server.run() => {
-                result?;
+        let result = tokio::select! {
+            result = server.run() => result.map_err(HostError::from),
+            _ = signal_task => Ok(()),
+            () = shutdown => {
+                tracing::info!("shutting down");
+                Ok(())
             }
-            _ = signal_task => {}
-        }
-
-        Ok(())
+        };
+        let _ = std::fs::remove_file(&self.config.socket_path);
+        result
     }
 }
 
@@ -186,6 +203,12 @@ async fn emit_signals_task(
                         .await
                         {
                             tracing::warn!(%e, id = ev.id, "failed to emit ActionInvoked");
+                        }
+                        // The spec: an invoked action removes the notification
+                        // unless it set the `resident` hint. After ActionInvoked,
+                        // so the sender sees the action before the close.
+                        if !ev.resident {
+                            state.queue.close(ev.id, CloseReason::DismissedByUser).await;
                         }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {

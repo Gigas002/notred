@@ -18,6 +18,7 @@ fn sample() -> Notification {
         category: Some("email.arrived".into()),
         desktop_entry: Some("thunderbird".into()),
         body_markup: true,
+        resident: false,
     }
 }
 

@@ -69,7 +69,11 @@ pub struct ActivateEvent {
     pub id: u32,
     pub key: String,
     pub app_id: String,
+    /// The notification's summary, for the hook's `NOTRED_SUMMARY`.
+    pub summary: String,
     pub urgency: crate::wire::Urgency,
+    /// The notification's `resident` hint: keep it open after the action.
+    pub resident: bool,
 }
 
 /// Errors from [`HostState::activate`].
@@ -157,14 +161,32 @@ impl HostState {
         let cfg = self.config.read().await.clone();
         let id = self.queue.push(notif.clone()).await;
         notif.id = id;
-        self.timeouts
-            .schedule(id, notif.timeout_ms, cfg.default_timeout_ms)
-            .await;
+        // A held notification's timeout starts when unpausing shows it.
+        if self.queue.is_held(id).await {
+            self.timeouts.cancel(id).await;
+        } else {
+            self.timeouts
+                .schedule(id, notif.timeout_ms, cfg.default_timeout_ms)
+                .await;
+        }
         let hooks = cfg.events.resolve(&notif.app_id, notif.urgency);
         crate::spawn::spawn_on_notify(&hooks, &notif);
         #[cfg(feature = "history")]
         self.record_notify(&notif).await;
         id
+    }
+
+    /// Pause or unpause; unpausing starts the timeouts of the notifications
+    /// it shows, which did not run while they were held.
+    pub async fn set_paused(&self, paused: bool) {
+        let default_timeout_ms = self.config.read().await.default_timeout_ms;
+        for id in self.queue.set_paused(paused).await {
+            if let Some(notif) = self.queue.get(id).await {
+                self.timeouts
+                    .schedule(id, notif.timeout_ms, default_timeout_ms)
+                    .await;
+            }
+        }
     }
 
     pub fn subscribe_activates(&self) -> broadcast::Receiver<ActivateEvent> {
@@ -250,9 +272,22 @@ impl HostState {
     }
 
     /// Resolve action key and enqueue activation (D-Bus signal + optional shell).
+    ///
+    /// Without a `key`, the `"default"` action runs if the notification has
+    /// one; otherwise there is nothing to invoke and it is dismissed, as a
+    /// click on a notification without actions is.
     pub async fn activate(&self, id: u32, key: Option<String>) -> Result<(), ActivateError> {
-        let key = key.unwrap_or_else(|| "default".into());
         let notif = self.queue.get(id).await.ok_or(ActivateError::NotFound)?;
+        let key = match key {
+            Some(key) => key,
+            None if notif.action_keys.iter().any(|k| k == "default") => "default".into(),
+            None => {
+                self.queue
+                    .close(id, crate::model::CloseReason::DismissedByUser)
+                    .await;
+                return Ok(());
+            }
+        };
 
         if !notif.has_actions && key != "default" {
             return Err(ActivateError::InvalidActionKey { key });
@@ -266,7 +301,9 @@ impl HostState {
             id,
             key,
             app_id: notif.app_id,
+            summary: notif.summary,
             urgency: notif.urgency,
+            resident: notif.resident,
         };
         let _ = self.activate_tx.send(ev);
         Ok(())
@@ -288,19 +325,12 @@ impl HostState {
         }
 
         match kind {
+            // Runs the default action, or dismisses when there is none.
             EventKind::ButtonLeft | EventKind::Touch => {
-                if notif.has_actions {
-                    self.activate(id, None).await.map_err(|e| match e {
-                        ActivateError::NotFound => InputError::NotFound,
-                        ActivateError::InvalidActionKey { key } => {
-                            InputError::InvalidActionKey { key }
-                        }
-                    })?;
-                } else {
-                    self.queue
-                        .close(id, crate::model::CloseReason::DismissedByUser)
-                        .await;
-                }
+                self.activate(id, None).await.map_err(|e| match e {
+                    ActivateError::NotFound => InputError::NotFound,
+                    ActivateError::InvalidActionKey { key } => InputError::InvalidActionKey { key },
+                })?;
             }
             EventKind::ButtonMiddle | EventKind::ButtonRight => {
                 self.queue

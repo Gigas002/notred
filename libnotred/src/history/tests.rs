@@ -19,6 +19,7 @@ fn sample(id: u32, summary: &str) -> Notification {
         category: None,
         desktop_entry: None,
         body_markup: false,
+        resident: false,
     }
 }
 
@@ -106,4 +107,28 @@ fn active_only_filter() {
     assert_eq!(active.len(), 1);
     assert_eq!(active[0].id, 2);
     let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn max_id_is_zero_when_empty_and_the_highest_id_otherwise() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = HistoryStore::open(&dir.path().join("h.db"), false).unwrap();
+    assert_eq!(store.max_id().unwrap(), 0);
+    store.upsert_active(&sample(7, "a")).unwrap();
+    store.upsert_active(&sample(3, "b")).unwrap();
+    assert_eq!(store.max_id().unwrap(), 7);
+}
+
+#[test]
+fn the_database_is_readable_by_its_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+    let path = temp_db("mode");
+    let _ = std::fs::remove_file(&path);
+    std::fs::write(&path, b"").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let store = HistoryStore::open(&path, true).unwrap();
+    store.upsert_active(&sample(1, "secret")).unwrap();
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(mode, 0o600);
 }

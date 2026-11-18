@@ -25,6 +25,7 @@ mod host_history_tests {
             category: None,
             desktop_entry: None,
             body_markup: false,
+            resident: false,
         }
     }
 
@@ -91,6 +92,7 @@ mod input_tests {
             category: None,
             desktop_entry: None,
             body_markup: false,
+            resident: false,
         }
     }
 
@@ -144,6 +146,68 @@ mod input_tests {
         let ev = rx.try_recv().unwrap();
         assert_eq!(ev.id, id);
         assert_eq!(ev.key, "default");
+    }
+
+    fn notif_with_actions(keys: &[&str]) -> Notification {
+        Notification {
+            action_keys: keys.iter().map(|k| (*k).to_owned()).collect(),
+            has_actions: true,
+            ..notif(true)
+        }
+    }
+
+    #[tokio::test]
+    async fn button_left_without_a_default_action_dismisses() {
+        let queue = Arc::new(Queue::new());
+        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        let mut rx = state.subscribe_activates();
+        let id = queue.push(notif_with_actions(&["reply"])).await;
+        state.handle_input(id, "button_left").await.unwrap();
+        assert!(queue.is_empty().await);
+        assert!(rx.try_recv().is_err(), "no action to invoke");
+    }
+
+    #[tokio::test]
+    async fn activate_without_a_key_and_no_default_action_dismisses() {
+        let queue = Arc::new(Queue::new());
+        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        let id = queue.push(notif_with_actions(&["reply"])).await;
+        state.activate(id, None).await.unwrap();
+        assert!(queue.is_empty().await);
+    }
+
+    #[tokio::test]
+    async fn activate_with_an_unknown_key_is_still_an_error() {
+        let queue = Arc::new(Queue::new());
+        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        let id = queue.push(notif_with_actions(&["reply"])).await;
+        assert!(matches!(
+            state.activate(id, Some("default".into())).await,
+            Err(super::super::ActivateError::InvalidActionKey { .. })
+        ));
+        assert_eq!(queue.len().await, 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn held_notifications_expire_only_after_unpause() {
+        let queue = Arc::new(Queue::new());
+        let state = HostState::new(RuntimeConfig::default(), Arc::clone(&queue));
+        state.set_paused(true).await;
+        let id = state
+            .push_notification(Notification {
+                timeout_ms: 1000,
+                ..notif(false)
+            })
+            .await;
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        assert!(queue.get(id).await.is_some(), "expired while held");
+
+        state.set_paused(false).await;
+        assert_eq!(queue.len().await, 1);
+        tokio::time::sleep(std::time::Duration::from_millis(900)).await;
+        assert_eq!(queue.len().await, 1, "the full timeout runs after unpause");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(queue.is_empty().await);
     }
 
     #[test]

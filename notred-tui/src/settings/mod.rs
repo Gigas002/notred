@@ -13,7 +13,12 @@ pub struct Settings {
 
 pub fn resolve(cli: &Cli, file: FileConfig) -> Settings {
     Settings {
-        ctl: file.ctl.unwrap_or_else(|| cli.ctl.clone()),
+        // CLI > config > default, like `socket`.
+        ctl: cli
+            .ctl
+            .clone()
+            .or(file.ctl)
+            .unwrap_or_else(|| PathBuf::from("notredctl")),
         socket: cli.socket.clone().or(file.socket),
     }
 }

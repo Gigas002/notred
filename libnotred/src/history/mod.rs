@@ -60,6 +60,12 @@ impl HistoryStore {
             std::fs::create_dir_all(parent)?;
         }
         let conn = Connection::open(path)?;
+        // Notification text (messages, login codes) is for this user only.
+        // SQLite gives its journal files the database file's mode.
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+        }
         conn.execute_batch(SCHEMA)?;
         let store = Self {
             conn: Mutex::new(conn),
@@ -159,6 +165,16 @@ impl HistoryStore {
         let rows = stmt.query_map(params.as_slice(), row_to_history)?;
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(HistoryError::from)
+    }
+
+    /// The highest notification id stored, or `0` when empty.
+    pub fn max_id(&self) -> Result<u32, HistoryError> {
+        let conn = self.conn.lock().expect("history db mutex poisoned");
+        let max: i64 =
+            conn.query_row("SELECT COALESCE(MAX(id), 0) FROM notifications", [], |r| {
+                r.get(0)
+            })?;
+        Ok(u32::try_from(max).unwrap_or(u32::MAX))
     }
 
     /// Drop oldest rows until at most `max` remain (`max == 0` = unlimited).

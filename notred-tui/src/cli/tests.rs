@@ -5,7 +5,7 @@ use super::Cli;
 #[test]
 fn parses_defaults() {
     let cli = Cli::try_parse_from(["notred-tui"]).unwrap();
-    assert_eq!(cli.ctl, std::path::PathBuf::from("notredctl"));
+    assert!(cli.ctl.is_none());
     assert!(cli.socket.is_none());
 }
 

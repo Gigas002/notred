@@ -4,7 +4,6 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 description = "notred daemon library: notification IPC wire + Unix socket server."
 keywords.workspace = true
 readme = "../README.md"
@@ -24,3 +23,8 @@ tracing = { workspace = true }
 tokio = { workspace = true }
 zbus = { workspace = true, optional = true }
 rusqlite = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Virtual time for timeout tests.
+tokio = { workspace = true, features = ["test-util"] }
+tempfile = "3"

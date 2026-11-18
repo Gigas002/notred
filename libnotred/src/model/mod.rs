@@ -28,6 +28,9 @@ pub struct Notification {
     /// Snapshot of `[notifications].body_markup` at ingestion time — whether
     /// `body` should be treated as Pango markup by subscribers.
     pub body_markup: bool,
+    /// FDN `resident` hint: stay open after an action is invoked, until the
+    /// user or the sender closes it.
+    pub resident: bool,
 }
 
 impl Notification {

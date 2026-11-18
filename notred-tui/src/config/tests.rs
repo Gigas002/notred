@@ -30,3 +30,9 @@ socket = "/run/notred.sock"
         "/run/notred.sock"
     );
 }
+
+#[test]
+fn a_missing_explicit_config_is_an_error() {
+    let err = FileConfig::load(Some(std::path::Path::new("/nonexistent/tui.toml"))).unwrap_err();
+    assert!(err.to_string().contains("/nonexistent/tui.toml"), "{err}");
+}

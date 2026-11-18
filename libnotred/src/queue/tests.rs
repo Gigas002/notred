@@ -19,6 +19,7 @@ fn notif(app: &str, summary: &str) -> Notification {
         category: None,
         desktop_entry: None,
         body_markup: false,
+        resident: false,
     }
 }
 
@@ -146,4 +147,27 @@ async fn change_broadcast_fires_on_push_and_close() {
 
     q.close(id, CloseReason::DismissedByUser).await;
     rx.try_recv().expect("change on close");
+}
+
+#[tokio::test]
+async fn unpause_keeps_max_visible() {
+    let q = Queue::new();
+    q.set_max_visible(2).await;
+    q.set_paused(true).await;
+    for i in 0..3 {
+        q.push(notif("app", &format!("held {i}"))).await;
+    }
+    q.set_paused(false).await;
+    let summaries: Vec<_> = q.snapshot().await.into_iter().map(|n| n.summary).collect();
+    assert_eq!(summaries, ["held 1", "held 2"], "the oldest is evicted");
+}
+
+#[tokio::test]
+async fn allocate_ids_after_skips_used_ids() {
+    let q = Queue::new();
+    q.allocate_ids_after(41).await;
+    assert_eq!(q.push(notif("a", "x")).await, 42);
+    // Never moves backwards.
+    q.allocate_ids_after(5).await;
+    assert_eq!(q.push(notif("a", "y")).await, 43);
 }

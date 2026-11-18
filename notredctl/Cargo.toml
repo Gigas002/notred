@@ -4,7 +4,6 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 description = "Control connector for the notred daemon (IPC client)."
 keywords.workspace = true
 
@@ -24,3 +23,8 @@ tracing-subscriber = { workspace = true }
 [features]
 default = []
 history = ["libnotred/history"]
+
+[dev-dependencies]
+# tests/cli.rs runs notredctl against an in-process IPC server.
+libnotred = { path = "../libnotred", default-features = false, features = ["server"] }
+tempfile = "3"

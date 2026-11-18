@@ -93,3 +93,29 @@ max_entries = 0
     assert!(!cfg.history.flush);
     assert_eq!(cfg.history.max_entries, 0);
 }
+
+#[test]
+fn unknown_keys_are_collected_with_their_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("notred.toml");
+    std::fs::write(
+        &path,
+        "[queue]\ndefault_timeout = 5000\nmax_visible = 3\n\n[event]\non_notify = []\n",
+    )
+    .unwrap();
+    let cfg = FileConfig::load(Some(&path)).unwrap();
+    assert_eq!(cfg.queue.max_visible, 3);
+    let keys = cfg.unknown_keys.join("\n");
+    assert!(
+        keys.contains("unknown key `queue.default_timeout` ignored"),
+        "{keys}"
+    );
+    assert!(keys.contains("unknown key `event` ignored"), "{keys}");
+}
+
+#[test]
+fn the_example_config_has_no_unknown_keys() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../examples/config.toml");
+    let cfg = FileConfig::load(Some(std::path::Path::new(path))).unwrap();
+    assert!(cfg.unknown_keys.is_empty(), "{:?}", cfg.unknown_keys);
+}

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "history")]
 use libnotred::HistorySettings;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use crate::error::NotredBinError;
 
@@ -49,6 +50,10 @@ pub struct FileConfig {
     /// Set when loading from an explicit path (not serialized).
     #[serde(skip)]
     pub source_path: Option<PathBuf>,
+
+    /// Keys in the file that no setting uses, as messages to log.
+    #[serde(skip)]
+    pub unknown_keys: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -165,6 +170,7 @@ impl Default for FileConfig {
             #[cfg(feature = "history")]
             history_path: default_history_path(),
             source_path: None,
+            unknown_keys: Vec::new(),
         }
     }
 }
@@ -172,26 +178,20 @@ impl Default for FileConfig {
 impl FileConfig {
     /// Load from an explicit path, or discover via XDG, or return defaults.
     pub fn load(explicit: Option<&Path>) -> Result<Self, NotredBinError> {
-        let cfg = if let Some(path) = explicit {
-            let text = std::fs::read_to_string(path)
-                .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())))?;
-            let mut cfg: FileConfig = toml::from_str(&text)
-                .map_err(|e| NotredBinError::Config(format!("{}: {e}", path.display())))?;
-            cfg.source_path = Some(path.to_path_buf());
-            cfg
-        } else {
-            let xdg = Self::xdg_path();
-            if xdg.exists() {
-                let text = std::fs::read_to_string(&xdg)
-                    .map_err(|e| NotredBinError::Config(format!("{}: {e}", xdg.display())))?;
-                let mut cfg: FileConfig = toml::from_str(&text)
-                    .map_err(|e| NotredBinError::Config(format!("{}: {e}", xdg.display())))?;
-                cfg.source_path = Some(xdg);
-                cfg
-            } else {
-                FileConfig::default()
+        let path = match explicit {
+            Some(path) => path.to_path_buf(),
+            None => {
+                let xdg = Self::xdg_path();
+                if !xdg.exists() {
+                    return Ok(FileConfig::default());
+                }
+                xdg
             }
         };
+        let mut unknown_keys = Vec::new();
+        let mut cfg: FileConfig = read_toml(&path, &mut unknown_keys)?;
+        cfg.source_path = Some(path);
+        cfg.unknown_keys = unknown_keys;
         Ok(cfg)
     }
 
@@ -216,6 +216,45 @@ impl FileConfig {
             flush: self.history.flush,
             max_entries: self.history.max_entries,
         }
+    }
+}
+
+/// Read and parse the TOML file at `path`, adding a message to `unknown`
+/// for every key that no setting uses (a typo would otherwise be ignored).
+pub(crate) fn read_toml<T: DeserializeOwned>(
+    path: &Path,
+    unknown: &mut Vec<String>,
+) -> Result<T, NotredBinError> {
+    let config_err = |e: &dyn std::fmt::Display| {
+        NotredBinError::Config(format!("{}: {}", path.display(), e.to_string().trim_end()))
+    };
+    let text = std::fs::read_to_string(path).map_err(|e| config_err(&e))?;
+    toml::Deserializer::parse(&text)
+        .and_then(|de| {
+            serde_ignored::deserialize(de, |key| {
+                unknown.push(format!(
+                    "{}: unknown key `{}` ignored",
+                    path.display(),
+                    key_path(&key)
+                ));
+            })
+        })
+        .map_err(|e| config_err(&e))
+}
+
+/// `a.b[0].c` for a serde_ignored path.
+fn key_path(path: &serde_ignored::Path<'_>) -> String {
+    use serde_ignored::Path;
+    match path {
+        Path::Root => String::new(),
+        Path::Seq { parent, index } => format!("{}[{index}]", key_path(parent)),
+        Path::Map { parent, key } => match key_path(parent) {
+            p if p.is_empty() => key.clone(),
+            p => format!("{p}.{key}"),
+        },
+        Path::Some { parent }
+        | Path::NewtypeStruct { parent }
+        | Path::NewtypeVariant { parent } => key_path(parent),
     }
 }
 
